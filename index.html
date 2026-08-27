@@ -193,6 +193,49 @@
   }
   .comment-item:last-child{border-bottom:none;}
   .comment-item .c-name{color:var(--accent-2);font-weight:600;margin-right:4px;}
+  .comment-reply-ref{
+    font-size:10.5px;
+    color:var(--text-dim);
+    background:rgba(0,0,0,0.04);
+    border-left:2px solid var(--accent);
+    padding:3px 6px;
+    border-radius:5px;
+    margin:3px 0 3px 0;
+    max-width:100%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .comment-actions{
+    display:flex;
+    gap:9px;
+    align-items:center;
+    margin-top:3px;
+  }
+  .comment-actions .action-btn{font-size:10px;padding:1px 3px;}
+  .comment-reply-preview{
+    display:none;
+    background:rgba(0,0,0,0.04);
+    border-radius:8px;
+    padding:5px 8px;
+    margin-top:6px;
+    font-size:11px;
+    color:var(--text-dim);
+    align-items:center;
+    justify-content:space-between;
+  }
+  .comment-reply-preview.show{display:flex;}
+  .comment-reply-preview .crp-text{
+    border-left:2px solid var(--accent);
+    padding-left:6px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    max-width:85%;
+  }
+  .comment-reply-preview button{
+    background:none;border:none;color:var(--danger);font-size:13px;cursor:pointer;
+  }
   .comment-input-row{
     display:flex;
     gap:6px;
@@ -429,7 +472,7 @@
     </div>
   </div>
 
-  <div id="notice">This is a fully anonymous space · no names are shown. Please respect everyone. Adult, abusive, or inappropriate content is automatically filtered, and links are not allowed. If you spot spam or anything that shouldn't be here, report it immediately using the ⚑ button.</div>
+  <div id="notice">This is a fully anonymous space. Please respect everyone. Adult, abusive, or inappropriate content is automatically filtered, and links are not allowed. If you spot spam or anything that shouldn't be here, report it immediately using the ⚑ button.</div>
 
   <div id="messages"></div>
 
@@ -439,8 +482,8 @@
   </div>
 
   <div id="footer">
-    <input type="text" id="msg-input" placeholder="Message the group..." autocomplete="off" disabled="">
-    <button id="send-btn" onclick="handleSend()" disabled="">Send</button>
+    <input type="text" id="msg-input" placeholder="Message the group..." autocomplete="off" maxlength="450" disabled>
+    <button id="send-btn" onclick="handleSend()" disabled>Send</button>
   </div>
 </div>
 
@@ -488,6 +531,12 @@ const db = firebase.database();
 const ROOM = "group_room_v1";     // separate from the old 1-1 anon chat data
 const MSG_LIFETIME_MS = 24 * 60 * 60 * 1000; // 24 hours
 const REPORT_HIDE_THRESHOLD = 3;   // auto-hide a message after N reports
+const MAX_MESSAGE_WORDS = 80;      // keep messages readable, no wall-of-text spam
+const MAX_COMMENT_WORDS = 40;      // comments stay short by design
+
+function wordCount(text){
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
 
 let myId = "u" + Math.floor(Math.random() * 1000000) + Date.now().toString(36);
 let myName = null;           // no identity is stored/verified · just a display label the user picks
@@ -804,6 +853,10 @@ function renderMessage(id, msg){
     </div>
     <div class="comments-box" id="comments-${id}">
       <div class="comment-list" id="comment-list-${id}"></div>
+      <div class="comment-reply-preview" id="comment-reply-preview-${id}">
+        <div class="crp-text" id="comment-reply-preview-text-${id}"></div>
+        <button onclick="cancelCommentReply('${id}')">✕</button>
+      </div>
       <div class="comment-input-row">
         <input type="text" id="comment-input-${id}" placeholder="Write a comment..." maxlength="200">
         <button onclick="submitComment('${id}')">Post</button>
@@ -863,10 +916,87 @@ function countReactions(obj){
 function renderComments(msgId, comments){
   const list = document.getElementById('comment-list-' + msgId);
   if (!list) return;
-  list.innerHTML = Object.values(comments)
-    .sort((a,b) => a.timestamp - b.timestamp)
-    .map(c => `<div class="comment-item"><span class="c-name">${escapeHtml(c.senderName || 'Anonymous')}</span>${escapeHtml(c.text)}</div>`)
+  list.innerHTML = Object.entries(comments)
+    .filter(([, c]) => !(c.reportCount && c.reportCount >= REPORT_HIDE_THRESHOLD))
+    .sort((a,b) => a[1].timestamp - b[1].timestamp)
+    .map(([cId, c]) => {
+      const isMine = c.sender === myId;
+      let h = `<div class="comment-item" id="crow-${msgId}-${cId}">`;
+      h += `<span class="c-name">${isMine ? 'You' : escapeHtml(c.senderName || 'Anonymous')}</span>`;
+      if (c.replyTo){
+        h += `<div class="comment-reply-ref">↩ ${escapeHtml(c.replyTo.text)}</div>`;
+      }
+      h += escapeHtml(c.text);
+      h += `
+        <div class="comment-actions">
+          <button class="action-btn heart-btn" onclick="reactComment('${msgId}','${cId}','heart')">❤️ <span class="heart-count">${countReactions(c.hearts)}</span></button>
+          <button class="action-btn like-btn" onclick="reactComment('${msgId}','${cId}','like')">👍 <span class="like-count">${countReactions(c.likes)}</span></button>
+          <button class="action-btn dislike-btn" onclick="reactComment('${msgId}','${cId}','dislike')">👎 <span class="dislike-count">${countReactions(c.dislikes)}</span></button>
+          <button class="action-btn" onclick="startCommentReply('${msgId}','${cId}', ${jsAttr(c.text)})">↩ Reply</button>
+          <button class="action-btn report-btn" onclick="openReportModal('${msgId}','${cId}')">⚑</button>
+        </div>
+      `;
+      h += `</div>`;
+      return h;
+    })
     .join('');
+
+  Object.entries(comments).forEach(([cId, c]) => applyCommentReactionHighlight(msgId, cId, c));
+}
+
+function applyCommentReactionHighlight(msgId, cId, c){
+  const row = document.getElementById(`crow-${msgId}-${cId}`);
+  if (!row) return;
+  const likeBtn = row.querySelector('.like-btn');
+  const dislikeBtn = row.querySelector('.dislike-btn');
+  const heartBtn = row.querySelector('.heart-btn');
+  if (likeBtn) likeBtn.classList.toggle('active-like', !!(c.likes && c.likes[myId]));
+  if (dislikeBtn) dislikeBtn.classList.toggle('active-dislike', !!(c.dislikes && c.dislikes[myId]));
+  if (heartBtn) heartBtn.classList.toggle('active-heart', !!(c.hearts && c.hearts[myId]));
+}
+
+/* =======================================================
+   COMMENT REACTIONS (heart/like/dislike, same rules as messages)
+======================================================= */
+function reactComment(msgId, cId, type){
+  const base = `chats/${ROOM}/messages/${msgId}/comments/${cId}`;
+  if (type === 'heart'){
+    const heartPath = `${base}/hearts/${myId}`;
+    db.ref(heartPath).once('value', snap => {
+      if (snap.exists()) db.ref(heartPath).remove();
+      else db.ref(heartPath).set(true);
+    });
+    return;
+  }
+  const path = `${base}/${type === 'like' ? 'likes' : 'dislikes'}/${myId}`;
+  const oppositePath = `${base}/${type === 'like' ? 'dislikes' : 'likes'}/${myId}`;
+  db.ref(path).once('value', snap => {
+    if (snap.exists()){
+      db.ref(path).remove();
+    } else {
+      db.ref(path).set(true);
+      db.ref(oppositePath).remove();
+    }
+  });
+}
+
+/* =======================================================
+   COMMENT REPLY FLOW (scoped per message's comment box)
+======================================================= */
+let commentReplyTargets = {}; // { [msgId]: {id, text} }
+
+function startCommentReply(msgId, cId, text){
+  commentReplyTargets[msgId] = { id: cId, text: text.slice(0, 80) };
+  const preview = document.getElementById('comment-reply-preview-' + msgId);
+  document.getElementById('comment-reply-preview-text-' + msgId).innerText = `Replying to: ${commentReplyTargets[msgId].text}`;
+  preview.classList.add('show');
+  const input = document.getElementById('comment-input-' + msgId);
+  if (input) input.focus();
+}
+function cancelCommentReply(msgId){
+  delete commentReplyTargets[msgId];
+  const preview = document.getElementById('comment-reply-preview-' + msgId);
+  if (preview) preview.classList.remove('show');
 }
 
 function toggleComments(msgId){
@@ -928,6 +1058,10 @@ function submitComment(msgId){
     nameInputEl.focus();
     return;
   }
+  if (wordCount(text) > MAX_COMMENT_WORDS){
+    showToast(`⚠️ Keep comments under ${MAX_COMMENT_WORDS} words.`);
+    return;
+  }
   if (containsBannedWord(text)){
     showToast("⚠️ Comment blocked · inappropriate language.");
     return;
@@ -936,20 +1070,26 @@ function submitComment(msgId){
     showToast("⚠️ Links are not allowed in comments.");
     return;
   }
-  db.ref(`chats/${ROOM}/messages/${msgId}/comments`).push({
+
+  const payload = {
     sender: myId,
     senderName: myName,
     text: text.slice(0, 200),
     timestamp: Date.now()
-  });
+  };
+  const replyTo = commentReplyTargets[msgId];
+  if (replyTo) payload.replyTo = replyTo;
+
+  db.ref(`chats/${ROOM}/messages/${msgId}/comments`).push(payload);
   input.value = "";
+  cancelCommentReply(msgId);
 }
 
 /* =======================================================
    REPORT FLOW
 ======================================================= */
-function openReportModal(msgId){
-  reportTargetId = msgId;
+function openReportModal(msgId, commentId){
+  reportTargetId = { msgId, commentId: commentId || null };
   document.getElementById('report-modal').classList.add('show');
 }
 function closeReportModal(){
@@ -958,19 +1098,23 @@ function closeReportModal(){
 }
 function submitReport(reason){
   if (!reportTargetId) return;
-  const msgRef = db.ref(`chats/${ROOM}/messages/${reportTargetId}`);
+  const { msgId, commentId } = reportTargetId;
+  const targetRef = commentId
+    ? db.ref(`chats/${ROOM}/messages/${msgId}/comments/${commentId}`)
+    : db.ref(`chats/${ROOM}/messages/${msgId}`);
 
-  msgRef.child('reportedBy').child(myId).once('value', snap => {
+  targetRef.child('reportedBy').child(myId).once('value', snap => {
     if (snap.exists()){
-      showToast("You already reported this message.");
+      showToast(commentId ? "You already reported this comment." : "You already reported this message.");
       closeReportModal();
       return;
     }
-    msgRef.child('reportedBy').child(myId).set(reason);
-    msgRef.child('reportCount').transaction(c => (c || 0) + 1);
+    targetRef.child('reportedBy').child(myId).set(reason);
+    targetRef.child('reportCount').transaction(c => (c || 0) + 1);
 
     db.ref(`reports/${ROOM}`).push({
-      messageId: reportTargetId,
+      messageId: msgId,
+      commentId: commentId || null,
       reason,
       reportedBy: myId,
       timestamp: Date.now()
@@ -999,17 +1143,22 @@ async function handleSend(){
   const safetyUnlock = setTimeout(() => { sendBtn.disabled = false; }, 8000);
 
   try{
-    // 1) manual word list (instant, local)
+    // 1) keep messages from becoming huge walls of text
+    if (wordCount(text) > MAX_MESSAGE_WORDS){
+      showToast(`⚠️ Keep messages under ${MAX_MESSAGE_WORDS} words.`);
+      return;
+    }
+    // 2) manual word list (instant, local)
     if (containsBannedWord(text)){
       showToast("⚠️ Message blocked · inappropriate language.");
       return;
     }
-    // 2) links are not allowed in this chat
+    // 3) links are not allowed in this chat
     if (containsLink(text)){
       showToast("⚠️ Links are not allowed in this chat.");
       return;
     }
-    // 3) API-based profanity check (has its own 2.5s timeout, fails open)
+    // 4) API-based profanity check (has its own 2.5s timeout, fails open)
     const flagged = await containsApiFlaggedProfanity(text);
     if (flagged){
       showToast("⚠️ Message blocked by moderation filter.");
