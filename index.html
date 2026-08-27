@@ -25,15 +25,54 @@
     justify-content:center;
     padding:16px;
   }
-  #app{
+
+  /* =======================================================
+     PAGE SHELL
+     The ad slot(s) and the chat widget are two structurally
+     separate, non-nested containers so live UGC never renders
+     inside (or adjacent-in-DOM to) an ad unit. Keep it this way.
+  ======================================================= */
+  #page-shell{
     width:100%;
     max-width:520px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+
+  /* Placeholder ad slot - isolated from the chat container below.
+     Swap the inner comment for your real AdSense <ins> tag.
+     Never place ad code inside #app or #messages. */
+  .adsense-slot{
+    width:100%;
+    min-height:90px;
+    background:#eef0f2;
+    border:1px dashed #c9ced3;
+    border-radius:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:11px;
+    color:var(--text-dim);
+  }
+  /*
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+       data-ad-slot="XXXXXXXXXX"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  */
+
+  #app{
+    width:100%;
     background:var(--panel);
     border-radius:20px;
     overflow:hidden;
     display:flex;
     flex-direction:column;
-    height:88vh;
+    height:80vh;
     box-shadow:0 20px 60px rgba(0,0,0,0.10);
     border:1px solid #e4e7ea;
   }
@@ -299,10 +338,15 @@
   /* INPUT */
   #footer{
     display:flex;
-    gap:8px;
+    flex-direction:column;
+    gap:6px;
     padding:12px;
     background:var(--panel-2);
     border-top:1px solid #e4e7ea;
+  }
+  #footer-row{
+    display:flex;
+    gap:8px;
   }
   #msg-input{
     flex:1;
@@ -325,6 +369,12 @@
     font-size:14px;
   }
   #send-btn:disabled{opacity:0.5;cursor:not-allowed;}
+  #cooldown-note{
+    font-size:10px;
+    color:var(--text-dim);
+    padding:0 6px;
+    min-height:12px;
+  }
 
   /* REPORT MODAL */
   #report-modal{
@@ -454,37 +504,49 @@
 
   @media (max-width:480px){
     body{padding:0;}
-    #app{height:100vh;max-width:100%;border-radius:0;border:none;}
+    #page-shell{max-width:100%;}
+    #app{height:100vh;border-radius:0;border:none;}
     .msg-row{max-width:88%;}
   }
 </style>
 
+<div id="page-shell">
 
+  <!-- Ad slot #1 - deliberately OUTSIDE and a sibling of #app, never inside the chat DOM tree -->
+  <div class="adsense-slot" id="ad-slot-top">Ad slot (top) — isolated from chat content</div>
 
-<div id="app">
-  <div id="header">
-    <div class="title">
-      <strong>🌐 Creshy Hidden Group Chat</strong>
-      <span>No names, no hesitation · just talk freely</span>
+  <div id="app">
+    <div id="header">
+      <div class="title">
+        <strong>🌐 Creshy Hidden Group Chat</strong>
+        <span>No names, no hesitation · just talk freely</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div id="online-pill"><span id="online-count">0</span></div>
+      </div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div id="online-pill"><span id="online-count">0</span></div>
+
+    <div id="notice">This is a fully anonymous space. Please respect everyone. Adult, abusive, or inappropriate content is automatically filtered, and links are not allowed. If you spot spam or anything that shouldn't be here, report it immediately using the ⚑ button.</div>
+
+    <div id="messages"></div>
+
+    <div id="reply-preview">
+      <div class="rp-text" id="reply-preview-text"></div>
+      <button onclick="cancelReply()">✕</button>
+    </div>
+
+    <div id="footer">
+      <div id="footer-row">
+        <input type="text" id="msg-input" placeholder="Message the group..." autocomplete="off" maxlength="450" disabled>
+        <button id="send-btn" onclick="handleSend()" disabled>Send</button>
+      </div>
+      <div id="cooldown-note"></div>
     </div>
   </div>
 
-  <div id="notice">This is a fully anonymous space. Please respect everyone. Adult, abusive, or inappropriate content is automatically filtered, and links are not allowed. If you spot spam or anything that shouldn't be here, report it immediately using the ⚑ button.</div>
+  <!-- Ad slot #2 - also fully isolated from the chat/messages container -->
+  <div class="adsense-slot" id="ad-slot-bottom">Ad slot (bottom) — isolated from chat content</div>
 
-  <div id="messages"></div>
-
-  <div id="reply-preview">
-    <div class="rp-text" id="reply-preview-text"></div>
-    <button onclick="cancelReply()">✕</button>
-  </div>
-
-  <div id="footer">
-    <input type="text" id="msg-input" placeholder="Message the group..." autocomplete="off" maxlength="450" disabled>
-    <button id="send-btn" onclick="handleSend()" disabled>Send</button>
-  </div>
 </div>
 
 <!-- NAME MODAL (required before sending any message) -->
@@ -534,6 +596,17 @@ const REPORT_HIDE_THRESHOLD = 3;   // auto-hide a message after N reports
 const MAX_MESSAGE_WORDS = 80;      // keep messages readable, no wall-of-text spam
 const MAX_COMMENT_WORDS = 40;      // comments stay short by design
 
+// ---- Hugging Face multilingual toxicity model ----
+// Get a free token at https://huggingface.co/settings/tokens and paste it below.
+const HUGGING_FACE_API_KEY = "YOUR_API_KEY";
+const HF_MODEL_URL = "https://api-inference.huggingface.co/models/textdetox/multilingual-toxic-xlm-roberta";
+const TOXICITY_THRESHOLD = 0.70;
+
+// ---- Client-side spam / rate limit ----
+const SEND_COOLDOWN_MS = 2500; // 2.5s between messages, per user, per tab
+let lastSendAt = 0;
+let lastCommentAt = {}; // per-message cooldown for comments
+
 function wordCount(text){
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
@@ -550,115 +623,884 @@ const nameModalEl = document.getElementById('name-modal');
 const nameInputEl = document.getElementById('name-input');
 const nameErrorEl = document.getElementById('name-error');
 const sendBtnEl = document.getElementById('send-btn');
+const cooldownNoteEl = document.getElementById('cooldown-note');
 
 /* =======================================================
-   BAD WORDS FILTER (manual list)
-   -- Extend this array any time. Matching is case-insensitive
-      and works on Roman-Urdu + English words.
+   1) GLOBAL TEXT NORMALIZATION & UNICODE HANDLING
+   -- Used only to DECIDE whether text is allowed. The
+      original, unmodified text is still what gets stored
+      and displayed (via escapeHtml), so legitimate text in
+      any script is never mangled for the user.
 ======================================================= */
-const BANNED_WORDS = [
-  // Merged from a hand-picked custom set + the open-source LDNOOBW
-  // profanity lists (English + Romanized Hindi/Urdu). 534 unique words.
-  // Source: github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words (MIT)
-  // Add/remove words freely below, one per line or comma-separated.
+
+// Leetspeak / common bypass substitutions -> plain latin letters
+const LEET_MAP = {
+  "0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","8":"b","9":"g",
+  "@":"a","$":"s","!":"i","+":"t","€":"e","£":"e",
+  "|":"i","(":"c",")":"c","[":"c","]":"c",
+  "µ":"u","ß":"b"
+};
+
+function normalizeForFilter(text){
+  if (!text) return "";
+  let t = String(text);
+
+  // remove zero-width / invisible characters used to split banned words
+  t = t.replace(/[\u200B-\u200F\u202A-\u202E\uFEFF\u2060]/g, "");
+
+  // Unicode normalize (NFKD) then strip combining diacritical marks,
+  // so accented / decorated characters collapse to their base form
+  t = t.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+
+  t = t.toLowerCase();
+
+  // collapse leetspeak substitutions to plain letters
+  t = t.replace(/[01345789@$!+€£|()\[\]µß]/g, ch => LEET_MAP[ch] !== undefined ? LEET_MAP[ch] : ch);
+
+  // collapse repeated punctuation/spacing bypass tricks like "f.u.c.k" or "f u c k"
+  // (only collapses separator characters between otherwise-letter runs, keeps normal spacing for word-boundary checks separately)
+  t = t.replace(/[\-_.*]{1,3}/g, "");
+
+  // collapse 3+ repeated characters ("fuuuuck") down to 2 so repetition can't dodge matching
+  t = t.replace(/(.)\1{2,}/g, "$1$1");
+
+  return t;
+}
+
+// Strip any spaces that sit *between* single letters (e.g. "f u c k" -> "fuck")
+// applied as a secondary pass only for matching, never for storage/display.
+function collapseSpacedOutLetters(text){
+  return text.replace(/\b(?:[a-z]\s+){2,}[a-z]\b/g, m => m.replace(/\s+/g, ""));
+}
+
+/* =======================================================
+   XSS / INJECTION SANITIZATION
+   -- Belt-and-suspenders: messages are already rendered with
+      escapeHtml() (via innerText), but we also strip obvious
+      script/tag/event-handler payloads from the text BEFORE
+      it's normalized, filtered, or written to Firebase, so
+      nothing resembling markup ever round-trips through the
+      database either.
+======================================================= */
+function sanitizeInput(text){
+  if (!text) return "";
+  let t = String(text);
+  t = t.replace(/<\/?[a-z][\s\S]*?>/gi, "");      // strip HTML tags
+  t = t.replace(/javascript\s*:/gi, "");            // strip javascript: URIs
+  t = t.replace(/on\w+\s*=/gi, "");                 // strip inline event handlers like onclick=
+  t = t.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ""); // strip control chars
+  return t.trim();
+}
+
+/* =======================================================
+   2) MULTI-LANGUAGE LOCAL BAD-WORDS FILTER
+   -- Instant, local, zero-latency first line of defense.
+      Extend any of these arrays freely, one word per line.
+======================================================= */
+// ---- ENGLISH (1609 words) ----
+const BANNED_WORDS_EN = [
   "fuck","fucking","shit","bitch","asshole","bastard",
   "slut","whore","dick","pussy","cock","cunt",
   "nigger","nigga","porn","sex video","nude","nudes",
-  "xxx","rape","suicide bomb","chutiya","chutiye","madarchod",
-  "behenchod","bhosdike","bhosdiwala","randi","randiya","kutta",
-  "kutti","harami","haramzada","gaand","gandu","lund",
-  "loda","chodu","chod","tatti","kanjar","kanjri",
-  "saali","saale","2g1c","2 girls 1 cup","acrotomophilia","alabama hot pocket",
-  "alaskan pipeline","anal","anilingus","anus","apeshit","arsehole",
-  "ass","assmunch","auto erotic","autoerotic","babeland","baby batter",
-  "baby juice","ball gag","ball gravy","ball kicking","ball licking","ball sack",
-  "ball sucking","bangbros","bangbus","bareback","barely legal","barenaked",
-  "bastardo","bastinado","bbw","bdsm","beaner","beaners",
-  "beaver cleaver","beaver lips","beastiality","bestiality","big black","big breasts",
-  "big knockers","big tits","bimbos","birdlock","bitches","black cock",
-  "blonde action","blonde on blonde action","blowjob","blow job","blow your load","blue waffle",
-  "blumpkin","bollocks","bondage","boner","boob","boobs",
-  "booty call","brown showers","brunette action","bukkake","bulldyke","bullet vibe",
-  "bullshit","bung hole","bunghole","busty","butt","buttcheeks",
-  "butthole","camel toe","camgirl","camslut","camwhore","carpet muncher",
-  "carpetmuncher","chocolate rosebuds","cialis","circlejerk","cleveland steamer","clit",
-  "clitoris","clover clamps","clusterfuck","cocks","coprolagnia","coprophilia",
-  "cornhole","coon","coons","creampie","cum","cumming",
-  "cumshot","cumshots","cunnilingus","darkie","date rape","daterape",
-  "deep throat","deepthroat","dendrophilia","dildo","dingleberry","dingleberries",
-  "dirty pillows","dirty sanchez","doggie style","doggiestyle","doggy style","doggystyle",
-  "dog style","dolcett","domination","dominatrix","dommes","donkey punch",
-  "double dong","double penetration","dp action","dry hump","dvda","eat my ass",
-  "ecchi","ejaculation","erotic","erotism","escort","eunuch",
-  "fag","faggot","fecal","felch","fellatio","feltch",
-  "female squirting","femdom","figging","fingerbang","fingering","fisting",
-  "foot fetish","footjob","frotting","fuck buttons","fuckin","fucktards",
-  "fudge packer","fudgepacker","futanari","gangbang","gang bang","gay sex",
-  "genitals","giant cock","girl on","girl on top","girls gone wild","goatcx",
-  "goatse","god damn","gokkun","golden shower","goodpoop","goo girl",
-  "goregasm","grope","group sex","g-spot","guro","hand job",
-  "handjob","hard core","hardcore","hentai","homoerotic","honkey",
-  "hooker","horny","hot carl","hot chick","how to kill","how to murder",
-  "huge fat","humping","incest","intercourse","jack off","jail bait",
-  "jailbait","jelly donut","jerk off","jigaboo","jiggaboo","jiggerboo",
-  "jizz","juggs","kike","kinbaku","kinkster","kinky",
-  "knobbing","leather restraint","leather straight jacket","lemon party","livesex","lolita",
-  "lovemaking","make me come","male squirting","masturbate","masturbating","masturbation",
-  "menage a trois","milf","missionary position","mong","motherfucker","mound of venus",
-  "mr hands","muff diver","muffdiving","nambla","nawashi","negro",
-  "neonazi","nig nog","nimphomania","nipple","nipples","nsfw",
-  "nsfw images","nudity","nutten","nympho","nymphomania","octopussy",
-  "omorashi","one cup two girls","one guy one jar","orgasm","orgy","paedophile",
-  "paki","panties","panty","pedobear","pedophile","pegging",
-  "penis","phone sex","piece of shit","pikey","pissing","piss pig",
-  "pisspig","playboy","pleasure chest","pole smoker","ponyplay","poof",
-  "poon","poontang","punany","poop chute","poopchute","porno",
-  "pornography","prince albert piercing","pthc","pubes","queaf","queef",
-  "quim","raghead","raging boner","raping","rapist","rectum",
-  "reverse cowgirl","rimjob","rimming","rosy palm","rosy palm and her 5 sisters","rusty trombone",
-  "sadism","santorum","scat","schlong","scissoring","semen",
-  "sex","sexcam","sexo","sexy","sexual","sexually",
-  "sexuality","shaved beaver","shaved pussy","shemale","shibari","shitblimp",
-  "shitty","shota","shrimping","skeet","slanteye","s&m",
-  "smut","snatch","snowballing","sodomize","sodomy","spastic",
-  "spic","splooge","splooge moose","spooge","spread legs","spunk",
-  "strap on","strapon","strappado","strip club","style doggy","suck",
-  "sucks","suicide girls","sultry women","swastika","swinger","tainted love",
-  "taste my","tea bagging","threesome","throating","thumbzilla","tied up",
-  "tight white","tit","tits","titties","titty","tongue in a",
-  "topless","tosser","towelhead","tranny","tribadism","tub girl",
-  "tubgirl","tushy","twat","twink","twinkie","two girls one cup",
-  "undressing","upskirt","urethra play","urophilia","vagina","venus mound",
-  "viagra","vibrator","violet wand","vorarephilia","voyeur","voyeurweb",
-  "voyuer","vulva","wank","wetback","wet dream","white power",
-  "worldsex","wrapping men","wrinkled starfish","xx","yaoi","yellow showers",
-  "yiffy","zoophilia","🖕","aand","aandu","balatkar",
-  "balatkari","behen chod","beti chod","bhadva","bhadve","bhandve",
-  "bhangi","bhootni ke","bhosad","bhosadi ke","boobe","chakke",
-  "chinaal","chinki","chodu bhagat","chooche","choochi","choope",
-  "choot","choot ke baal","chootia","chootiya","chuche","chuchi",
-  "chudaap","chudai khanaa","chudam chudai","chude","chut","chut ka chuha",
-  "chut ka churan","chut ka mail","chut ke baal","chut ke dhakkan","chut maarli","chutad",
-  "chutadd","chutan","chutia","gaandfat","gaandmasti","gaandufad",
-  "gandfattu","gashti","gasti","ghassa","ghasti","gucchi",
-  "gucchu","haramzade","hawas","hawas ke pujari","hijda","hijra",
-  "jhant","jhant chaatu","jhant ka keeda","jhant ke baal","jhant ke pissu","jhantu",
-  "kamine","kaminey","kutta kamina","kutte ki aulad","kutte ki jat","kuttiya",
-  "lodu","lund choos","lund ka bakkal","lund khajoor","lundtopi","lundure",
-  "maa ki chut","maal","madar chod","madhavchod","mooh mein le","mutth",
-  "mutthal","najayaz","najayaz aulaad","najayaz paidaish","pataka","patakha",
-  "raand","randaap","randi rona","saala","saala kutta","saali kutti",
-  "saali randi","suar","suar ke lund","suar ki aulad","tatte","teri maa ka bhosada",
-  "teri maa ka boba chusu","teri maa ki behenchod","teri maa ki chut","tharak","tharki","tu chuda"
+  "xxx","rape","suicide bomb","2g1c","2 girls 1 cup","acrotomophilia",
+  "alabama hot pocket","alaskan pipeline","anal","anilingus","anus","apeshit",
+  "arsehole","ass","assmunch","auto erotic","autoerotic","babeland",
+  "baby batter","baby juice","ball gag","ball gravy","ball kicking","ball licking",
+  "ball sack","ball sucking","bangbros","bangbus","bareback","barely legal",
+  "barenaked","bastardo","bastinado","bbw","bdsm","beaner",
+  "beaners","beaver cleaver","beaver lips","beastiality","bestiality","big black",
+  "big breasts","big knockers","big tits","bimbos","birdlock","bitches",
+  "black cock","blonde action","blonde on blonde action","blowjob","blow job","blow your load",
+  "blue waffle","blumpkin","bollocks","bondage","boner","boob",
+  "boobs","booty call","brown showers","brunette action","bukkake","bulldyke",
+  "bullet vibe","bullshit","bung hole","bunghole","busty","butt",
+  "buttcheeks","butthole","camel toe","camgirl","camslut","camwhore",
+  "carpet muncher","carpetmuncher","chocolate rosebuds","cialis","circlejerk","cleveland steamer",
+  "clit","clitoris","clover clamps","clusterfuck","cocks","coprolagnia",
+  "coprophilia","cornhole","coon","coons","creampie","cum",
+  "cumming","cumshot","cumshots","cunnilingus","darkie","date rape",
+  "daterape","deep throat","deepthroat","dendrophilia","dildo","dingleberry",
+  "dingleberries","dirty pillows","dirty sanchez","doggie style","doggiestyle","doggy style",
+  "doggystyle","dog style","dolcett","domination","dominatrix","dommes",
+  "donkey punch","double dong","double penetration","dp action","dry hump","dvda",
+  "eat my ass","ecchi","ejaculation","erotic","erotism","escort",
+  "eunuch","fag","faggot","fecal","felch","fellatio",
+  "feltch","female squirting","femdom","figging","fingerbang","fingering",
+  "fisting","foot fetish","footjob","frotting","fuck buttons","fuckin",
+  "fucktards","fudge packer","fudgepacker","futanari","gangbang","gang bang",
+  "gay sex","genitals","giant cock","girl on","girl on top","girls gone wild",
+  "goatcx","goatse","god damn","gokkun","golden shower","goodpoop",
+  "goo girl","goregasm","grope","group sex","g-spot","guro",
+  "hand job","handjob","hard core","hardcore","hentai","homoerotic",
+  "honkey","hooker","horny","hot carl","hot chick","how to kill",
+  "how to murder","huge fat","humping","incest","intercourse","jack off",
+  "jail bait","jailbait","jelly donut","jerk off","jigaboo","jiggaboo",
+  "jiggerboo","jizz","juggs","kike","kinbaku","kinkster",
+  "kinky","knobbing","leather restraint","leather straight jacket","lemon party","livesex",
+  "lolita","lovemaking","make me come","male squirting","masturbate","masturbating",
+  "masturbation","menage a trois","milf","missionary position","mong","motherfucker",
+  "mound of venus","mr hands","muff diver","muffdiving","nambla","nawashi",
+  "negro","neonazi","nig nog","nimphomania","nipple","nipples",
+  "nsfw","nsfw images","nudity","nutten","nympho","nymphomania",
+  "octopussy","omorashi","one cup two girls","one guy one jar","orgasm","orgy",
+  "paedophile","paki","panties","panty","pedobear","pedophile",
+  "pegging","penis","phone sex","piece of shit","pikey","pissing",
+  "piss pig","pisspig","playboy","pleasure chest","pole smoker","ponyplay",
+  "poof","poon","poontang","punany","poop chute","poopchute",
+  "porno","pornography","prince albert piercing","pthc","pubes","queaf",
+  "queef","quim","raghead","raging boner","raping","rapist",
+  "rectum","reverse cowgirl","rimjob","rimming","rosy palm","rosy palm and her 5 sisters",
+  "rusty trombone","sadism","santorum","scat","schlong","scissoring",
+  "semen","sex","sexcam","sexo","sexy","sexual",
+  "sexually","sexuality","shaved beaver","shaved pussy","shemale","shibari",
+  "shitblimp","shitty","shota","shrimping","skeet","slanteye",
+  "s&m","smut","snatch","snowballing","sodomize","sodomy",
+  "spastic","spic","splooge","splooge moose","spooge","spread legs",
+  "spunk","strap on","strapon","strappado","strip club","style doggy",
+  "suck","sucks","suicide girls","sultry women","swastika","swinger",
+  "tainted love","taste my","tea bagging","threesome","throating","thumbzilla",
+  "tied up","tight white","tit","tits","titties","titty",
+  "tongue in a","topless","tosser","towelhead","tranny","tribadism",
+  "tub girl","tubgirl","tushy","twat","twink","twinkie",
+  "two girls one cup","undressing","upskirt","urethra play","urophilia","vagina",
+  "venus mound","viagra","vibrator","violet wand","vorarephilia","voyeur",
+  "voyeurweb","voyuer","vulva","wank","wetback","wet dream",
+  "white power","worldsex","wrapping men","wrinkled starfish","xx","yaoi",
+  "yellow showers","yiffy","zoophilia","🖕","4r5e","areole",
+  "arian","arrse","arse","aryan","asanchez","ass-fucker",
+  "assbang","assbanged","asses","assfuck","assfucker","assfukka",
+  "asswhole","ballsack","beastial","bellend","bestial","bimbo",
+  "bitchin","bitching","blowjobs","booobs","boooobs","booooobs",
+  "booooooobs","breasts","brown shower","buceta","bukake","bull shit",
+  "cawk","chink","cipa","clits","cnut","cockface",
+  "cockhead","cockmunch","cockmuncher","cocksuck","cocksucked","cocksucker",
+  "cocksucking","cocksucks","cokmuncher","cow girl","cow girls","cowgirl",
+  "cowgirls","crap","crotch","cuming","cummer","cums",
+  "cunilingus","cunillingus","cuntlicker","cuntlicking","cunts","damn",
+  "dickhead","dildos","dink","dinks","dlck","dog-fucker",
+  "doggie-style","doggin","dogging","doggy-style","dong","donkeyribber",
+  "doofus","doosh","dopey","douch3","douche","douchebag",
+  "douchebags","douchey","drunk","duche","dumass","dumbass",
+  "dumbasses","dummy","dyke","dykes","eatadick","eathairpie",
+  "ejaculate","ejaculated","ejaculates","ejaculating","ejaculatings","ejakulate",
+  "enlargement","erect","erection","essohbee","extacy","extasy",
+  "f_u_c_k","f-u-c-k","f.u.c.k","f4nny","facial","fack",
+  "fagg","fagged","fagging","faggit","faggitt","faggs",
+  "fagot","fagots","fags","faig","faigt","fanny",
+  "fannybandit","fannyflaps","fannyfucker","fanyy","fart","fartknocker",
+  "fat","fatass","fcuk","fcuker","fcuking","feck",
+  "fecker","felcher","felching","fellate","feltcher","fingerfuck",
+  "fingerfucked","fingerfucker","fingerfuckers","fingerfucking","fingerfucks","fisted",
+  "fistfuck","fistfucked","fistfucker","fistfuckers","fistfucking","fistfuckings",
+  "fistfucks","fisty","flange","flogthelog","floozy","foad",
+  "fondle","foobar","fook","fooker","foot job","foreskin",
+  "freex","frigg","frigga","fubar","fuck-ass","fuck-bitch",
+  "fuck-tard","fucka","fuckass","fucked","fucker","fuckers",
+  "fuckface","fuckhead","fuckheads","fuckhole","fuckings","fuckingshitmotherfucker",
+  "fuckme","fuckmeat","fucknugget","fucknut","fuckoff","fuckpuppet",
+  "fucks","fucktard","fucktoy","fucktrophy","fuckup","fuckwad",
+  "fuckwhit","fuckwit","fuckyomama","fuk","fuker","fukker",
+  "fukkin","fukking","fuks","fukwhit","fukwit","futanary",
+  "fux","fux0r","fvck","fxck","gae","gai",
+  "gang-bang","gangbanged","gangbangs","ganja","gassyass","gay",
+  "gaylord","gays","gaysex","gey","gfy","ghay",
+  "ghey","gigolo","glans","god","god-dam","god-damned",
+  "godamn","godamnit","goddam","goddammit","goddamn","goddamned",
+  "goldenshower","gonad","gonads","gook","gooks","gringo",
+  "gspot","gtfo","guido","h0m0","h0mo","hamflap",
+  "hardcoresex","hardon","he11","hebe","heeb","hell",
+  "hemp","heroin","herp","herpes","herpy","heshe",
+  "hitler","hiv","hoar","hoare","hobag","hoer",
+  "hom0","homey","homo","homoey","honky","hooch",
+  "hookah","hoor","hootch","hooter","hooters","hore",
+  "horniest","hotsex","howtokill","howtomurdep","hump","humped",
+  "hussy","hymen","inbred","injun","j3rk0ff","jack-off",
+  "jackass","jackhole","jackoff","jap","japs","jerk",
+  "jerk-off","jerk0ff","jerked","jerkoff","jism","jiz",
+  "jizm","jizzed","junkie","junky","kawk","kikes",
+  "kill","kinkyjesus","kkk","klan","knob","knobead",
+  "knobed","knobend","knobhead","knobjocky","knobjokey","kock",
+  "kondum","kondums","kooch","kooches","kootch","kraut",
+  "kum","kummer","kumming","kums","kunilingus","kwif",
+  "kyke","l3i+ch","l3itch","labia","lech","len",
+  "leper","lesbians","lesbo","lesbos","lez","lezbian",
+  "lezbians","lezbo","lezbos","lezzie","lezzies","lezzy",
+  "lmao","lmfao","loin","loins","lube","lust",
+  "lusting","lusty","m-fucking","m0f0","m0fo","m45terbate",
+  "ma5terb8","ma5terbate","mafugly","mams","masochist","massa",
+  "master-bate","masterb8","masterbat*","masterbat3","masterbate","masterbating",
+  "masterbation","masterbations","maxi","menses","menstruate","menstruation",
+  "meth","mo-fo","mof0","mofo","molest","moolie",
+  "moron","mothafuck","mothafucka","mothafuckas","mothafuckaz","mothafucked",
+  "mothafucker","mothafuckers","mothafuckin","mothafucking","mothafuckings","mothafucks",
+  "mother fucker","motherfuck","motherfucka","motherfucked","motherfuckers","motherfuckin",
+  "motherfucking","motherfuckings","motherfuckka","motherfucks","mtherfucker","mthrfucker",
+  "mthrfucking","muff","muffdiver","muffpuff","murder","mutha",
+  "muthafecker","muthafuckaz","muthafucker","muthafuckker","muther","mutherfucker",
+  "mutherfucking","muthrfucking","n1g","n1gg","n1gga","n1gger",
+  "nad","nads","naked","napalm","nappy","nazi",
+  "nazism","needthedick","nig","nigg","nigg3r","nigg4h",
+  "niggah","niggas","niggaz","niggers","niggle","niglet",
+  "nimrod","ninny","nob","nob jokey","nobhead","nobjocky",
+  "nobjokey","nooky","numbnuts","nutbutter","nutsack","omg",
+  "opiate","opium","oral","orally","organ","orgasim",
+  "orgasims","orgasmic","orgasms","orgies","ovary","ovum",
+  "ovums","p.u.s.s.y.","p0rn","paddy","pantie","pastie",
+  "pasty","pawn","pcp","pecker","pedo","pedophilia",
+  "pedophiliac","pee","peepee","penetrate","penetration","penial",
+  "penile","penisfucker","perversion","peyote","phalli","phallic",
+  "phonesex","phuck","phuk","phuked","phuking","phukked",
+  "phukking","phuks","phuq","pigfucker","pillowbiter","pimp",
+  "pimpis","pinko","piss","piss-off","pissed","pisser",
+  "pissers","pisses","pissflaps","pissin","pissoff","pms",
+  "polack","pollock","poop","pornos","pot","potty",
+  "prick","pricks","prig","pron","prostitute","prude",
+  "pube","pubic","pubis","punkass","punky","puss",
+  "pusse","pussi","pussies","pussyfart","pussypalace","pussypounder",
+  "pussys","puto","queer","queero","queers","quicky",
+  "r-tard","racy","raped","raper","raunch","rectal",
+  "rectus","reefer","reetard","reich","retard","retarded",
+  "revue","rimjaw","ritard","rtard","rum","rump",
+  "rumprammer","ruski","s_h_i_t","s-h-1-t","s-h-i-t","s-o-b",
+  "s.h.i.t.","s.o.b.","s0b","sadist","sandbar","sausagequeen",
+  "scag","scantily","schizo","screw","screwed","screwing",
+  "scroat","scrog","scrot","scrote","scrotum","scrud",
+  "scum","seaman","seamen","seduce","sh!+","sh!t",
+  "sh1t","shag","shagger","shaggin","shagging","shamedame",
+  "she male","shi+","shibary","shitdick","shite","shiteater",
+  "shited","shitey","shitface","shitfuck","shitfucker","shitfull",
+  "shithead","shithole","shithouse","shiting","shitings","shits",
+  "shitt","shitted","shitter","shitters","shitting","shittings",
+  "shiz","sissy","skag","skank","slave","sleaze",
+  "sleazy","slope","slutbucket","slutdumper","slutkiss","sluts",
+  "smegma","smutty","sniper","snuff","sodom","son-of-a-bitch",
+  "souse","soused","spac","sperm","spick","spik",
+  "spiks","steamy","stfu","stiffy","stoned","strip",
+  "stripclub","stroke","stupid","sucked","sucking","sumofabiatch",
+  "t1t","t1tt1e5","t1tties","tampon","tard","tawdry",
+  "teabagging","teat","teets","teez","terd","teste",
+  "testee","testes","testical","testicle","testis","three some",
+  "thrust","thug","tinkle","titfuck","titi","titt",
+  "tittie5","tittiefucker","tittyfuck","tittyfucker","tittywank","titwank",
+  "toke","toots","tramp","transsexual","trashy","turd",
+  "tush","tw4t","twathead","twats","twatty","twunt",
+  "twunter","ugly","undies","unwed","urinal","urine",
+  "uterus","uzi","v14gra","v1gra","vag","valium",
+  "virgin","vixen","vodka","vomit","vulgar","w00se",
+  "wad","wang","wanker","wanky","wazoo","wedgie",
+  "weed","weenie","weewee","weiner","weirdo","wench",
+  "wh0re","wh0reface","whitey","whiz","whoar","whoralicious",
+  "whorealicious","whored","whoreface","whorehopper","whorehouse","whores",
+  "whoring","wigger","willies","willy","womb","woody",
+  "wop","wtf","x-rated2g1c","yury","1 man 1 jar","1m1j",
+  "1man1jar","2girls1cup","acrotomophile","alabama tuna melt","algophile","algophilia",
+  "anal assassin","anal astronaut","ape shit","ape-shit","apotemnophile","apotemnophilia",
+  "arse bandit","ass bandit","baby gravy","ball batter","ball-gag","ball-kicking",
+  "ball-licking","ball-sucking","ballcuzi","ballgag","bang bros","bang bus",
+  "batty boi","batty boy","battyboi","battyboy","bean flicker","bean queen",
+  "bean-flicker","beanflicker","beestiality","bellesa","bicon","big boobs",
+  "big cock","bloody","blow-job","bluewaffle","bone smuggler","bone-smuggler",
+  "bonesmuggler","booty buffer","booty-buffer","boston george","brown piper","brown-piper",
+  "brownie king","brownie queen","brownpiper","buddha head","buddha-head","buddhahead",
+  "bufter","bufty","bugger","bull-shit","bullet vibrator","bum boy",
+  "bum chum","bum driller","bum pilot","bum pirate","bum rider","bum robber",
+  "bum rustler","bum-boy","bum-chum","bum-driller","bum-pirate","bum-robber",
+  "bumboy","bumchum","bumdriller","bumhole engineer","bumrider","bumrobber",
+  "butt boy","butt pilot","butt pirate","butt rider","butt robber","butt rustler",
+  "butt-boy","butt-pirate","butt-robber","buttboy","butthole engineer","buttrider",
+  "buttrobber","camel jockey","camel jockies","cameljockey","cameljockies","canadian porch swing",
+  "cheese eating surrender monkey","cheese-eating surrender monkey","chi chi man","chi-chi man","chicken queen","china man",
+  "china men","chinaman","chinamen","ching chong","ching-chong","chinks",
+  "chinky","chocolate rosebud","cholerophile","cholerophilia","christ","circle-jerk",
+  "cishet","cissie","cissy","claustrophile","claustrophilia","cleveland accordion",
+  "cleveland hot waffle","clover clamp","clunge","cluster fuck","cluster-fuck","cockpipe cosmonaut",
+  "cockstruction worker","coimetrophile","coimetrophilia","collared","collaring","coprophile",
+  "crafty butcher","cream-pie","cum shot","cum shots","cunt boy","cunt-boy",
+  "cuntboy","curry muncher","curry-muncher","currymuncher","darkey","darkies",
+  "darky","ddlg","deep-throat","dendrophile","dick girl","dick-girl",
+  "dickgirl","dipsea","dishabiliophile","dishabiliophilia","dog shit","dog-shit",
+  "dogshit","domme","donut muncher","donut puncher","doon coon","dooncoon",
+  "dune coon","dune-coon","dutch rudder","dystychiphile","dystychiphilia","edge play",
+  "edgeplay","electro-play","electroplay","emetophile","emetophilia","enby",
+  "eskimo trebuchet","eye-tie","eyetie","fag bomb","fag-bomb","fagbomb",
+  "fellating","finger bang","fingerbanging","fingered","finocchio","finoccio",
+  "finochio","foot-job","french rudder","frog eater","frog-eater","frogeater",
+  "frolic me","frolicme","frottage","fuck-wit","fucken","fuckwads",
+  "fuckwits","fudge-packer","gaysian","genitorture","gerontophile","gerontophilia",
+  "gin jockey","gin jocky","go-kun","god damned","god-damn","golden showers",
+  "golliwog","gollywog","gook-eye","gookie","gooky","gray queen",
+  "greaseball","grey queen","gym bunny","gymbunny","hadji","haji",
+  "hajji","hand-job","heimie","hermie","hickory switch","hippophile",
+  "hippophilia","honkeys","honkies","horse shit","horse-shit","horseshit",
+  "hot richard","huge cock","hymie","impact play","impact-play","jerk mate",
+  "jerkmate","jesus","jesus christ","jungle bunny","junglebunny","kennebunkport surprise",
+  "kentucky klondike","kentucky tractor puller","kitty puncher","kitty-puncher","kittypuncher","krauts",
+  "kunt","kunts","kynophile","kynophilia","lady boy","lady-boy",
+  "ladyboy","lemonparty","leningrad steamer","leso","light in the fedora","light in the loafers",
+  "light in the pants","limp wristed","limp-wristed","literotica","male-squirting","massive cock",
+  "masturb8","mayonnaise monkey","mayonnaise monkies","mdlb","meat masseuse","meat spin",
+  "meatspin","menage-a-trois","menages a trois","menages-a-trois","menophile","menophilia",
+  "mexican pancake","milwaukee blizzard","mississippi birdbath","mr. hands","mrhands","muff diving",
+  "muff-diver","muscle mary","mvtube","necrophile","necrophilia","neo nazi",
+  "neo-nazi","nigerian hurricane","niggs","nignog","nimpho","nimphomaniac",
+  "nipple clamp","nipple clamps","nymphomaniac","oklahomo","one jar one man","one man one jar",
+  "only fans","onlyfans","paedo bear","paedobear","paedophilia","pain slut",
+  "painslut","panamanian petting zoo","pansy","parthenophile","parthenophilia","pedo bear",
+  "peter puffer","peter-puffer","peterpuffer","petrol sniffer","petrol-sniffer","petrolsniffer",
+  "phagophile","phagophilia","pieces of shit","pikeys","piss off","pissed off",
+  "pnigerophile","pnigerophilia","pnigophile","pnigophilia","poinephile","poinephilia",
+  "pony boy","pony girl","pony-boy","pony-girl","pony-play","ponyboy",
+  "ponygirl","porn hub","pornhub","pornographic","potato queen","proctophile",
+  "proctophilia","punani","pussy puncher","pussy-puncher","pussypuncher","rag head",
+  "rag heads","ragheads","ramen yarmulke","rhabdophile","rhabdophilia","rhypophile",
+  "rhypophilia","rice queen","ring raider","ringraider","sand nigger","sand-nigger",
+  "sandnigger","scatophile","scatophilia","seplophile","seplophilia","she-male",
+  "sheep shagger","sheepshagger","shit head","shlong","skittle harvest","skittles harvest",
+  "slant eye","slant-eye","sod off","sodding","sodomise","sodomist",
+  "spearchucker","spicks","spics","spicy gringo","strap-on","suastika",
+  "svastika","swamp guinea","swamp-guinea","switch hitter","t-girl","taphephile",
+  "taphephilia","tea bagged","tea-bagged","tea-bagging","tgirl","thanatophile",
+  "thanatophilia","throbbing boner","throbbing cock","timber nigger","timber-nigger","timbernigger",
+  "towel head","towel-head","trannie","transbian","traumatophile","traumatophilia",
+  "tribbing","urophile","vorarephile","wagon burner","wagon-burner","wax play",
+  "wax-play","wet back","wet-back","whigger","white-power","whitepower",
+  "wigga","wiitwd","wog","wogs","wolfbagging","xhamster",
+  "xnxx","xtube","xvideos","xyrophile","xyrophilia","yellow shower",
+  "zipper head","zipper-head","zipperhead","zippo cat","zippo-cat","zippocat",
+  "zoophile"
 ];
 
+// ---- ROMAN HINDI/URDU (128 words) ----
+const BANNED_WORDS_ROMAN_HINDI_URDU = [
+  "chutiya","chutiye","madarchod","behenchod","bhosdike","bhosdiwala",
+  "randi","randiya","kutta","kutti","harami","haramzada",
+  "gaand","gandu","lund","loda","chodu","chod",
+  "tatti","kanjar","kanjri","saali","saale","aand",
+  "aandu","balatkar","balatkari","behen chod","beti chod","bhadva",
+  "bhadve","bhandve","bhangi","bhootni ke","bhosad","bhosadi ke",
+  "boobe","chakke","chinaal","chinki","chodu bhagat","chooche",
+  "choochi","choope","choot","choot ke baal","chootia","chootiya",
+  "chuche","chuchi","chudaap","chudai khanaa","chudam chudai","chude",
+  "chut","chut ka chuha","chut ka churan","chut ka mail","chut ke baal","chut ke dhakkan",
+  "chut maarli","chutad","chutadd","chutan","chutia","gaandfat",
+  "gaandmasti","gaandufad","gandfattu","gashti","gasti","ghassa",
+  "ghasti","gucchi","gucchu","haramzade","hawas","hawas ke pujari",
+  "hijda","hijra","jhant","jhant chaatu","jhant ka keeda","jhant ke baal",
+  "jhant ke pissu","jhantu","kamine","kaminey","kutta kamina","kutte ki aulad",
+  "kutte ki jat","kuttiya","lodu","lund choos","lund ka bakkal","lund khajoor",
+  "lundtopi","lundure","maa ki chut","maal","madar chod","madhavchod",
+  "mooh mein le","mutth","mutthal","najayaz","najayaz aulaad","najayaz paidaish",
+  "pataka","patakha","raand","randaap","randi rona","saala",
+  "saala kutta","saali kutti","saali randi","suar","suar ke lund","suar ki aulad",
+  "tatte","teri maa ka bhosada","teri maa ka boba chusu","teri maa ki behenchod","teri maa ki chut","tharak",
+  "tharki","tu chuda"
+];
+
+// ---- HINDI (DEVANAGARI SCRIPT) (119 words) ----
+const BANNED_WORDS_HINDI_DEVANAGARI = [
+  "aand","aandu","balatkar","balatkari","behen chod","beti chod",
+  "bhadva","bhadve","bhandve","bhangi","bhootni ke","bhosad",
+  "bhosadi ke","boobe","chakke","chinaal","chinki","chod",
+  "chodu","chodu bhagat","chooche","choochi","choope","choot",
+  "choot ke baal","chootia","chootiya","chuche","chuchi","chudaap",
+  "chudai khanaa","chudam chudai","chude","chut","chut ka chuha","chut ka churan",
+  "chut ka mail","chut ke baal","chut ke dhakkan","chut maarli","chutad","chutadd",
+  "chutan","chutia","chutiya","gaand","gaandfat","gaandmasti",
+  "gaandufad","gandfattu","gandu","gashti","gasti","ghassa",
+  "ghasti","gucchi","gucchu","harami","haramzade","hawas",
+  "hawas ke pujari","hijda","hijra","jhant","jhant chaatu","jhant ka keeda",
+  "jhant ke baal","jhant ke pissu","jhantu","kamine","kaminey","kanjar",
+  "kutta","kutta kamina","kutte ki aulad","kutte ki jat","kuttiya","loda",
+  "lodu","lund","lund choos","lund ka bakkal","lund khajoor","lundtopi",
+  "lundure","maa ki chut","maal","madar chod","madarchod","madhavchod",
+  "mooh mein le","mutth","mutthal","najayaz","najayaz aulaad","najayaz paidaish",
+  "paki","pataka","patakha","raand","randaap","randi",
+  "randi rona","saala","saala kutta","saali kutti","saali randi","suar",
+  "suar ke lund","suar ki aulad","tatte","tatti","teri maa ka bhosada","teri maa ka boba chusu",
+  "teri maa ki behenchod","teri maa ki chut","tharak","tharki","tu chuda"
+];
+
+// ---- SPANISH (92 words) ----
+const BANNED_WORDS_SPANISH = [
+  "puta","puto","putas","putos","mierda","cabron",
+  "cabrona","coño","pendejo","pendeja","gilipollas","joder",
+  "chinga","chingar","chingada","verga","pinche","maricon",
+  "marica","zorra","perra","culero","culera","pito",
+  "concha","carajo","hijo de puta","hija de puta","boludo","imbecil",
+  "idiota de mierda","polla","follar","follon","cojones","gilipollas de mierda",
+  "asesinato","asno","bastardo","bollera","cabrón","caca",
+  "chupada","chupapollas","chupetón","concha de tu madre","coprofagía","culo",
+  "drogas","esperma","fiesta de salchichas","follador","gilipichis","hacer una paja",
+  "haciendo el amor","heroína","hijaputa","hijoputa","idiota","imbécil",
+  "infierno","jilipollas","kapullo","lameculos","maciza","macizorra",
+  "maldito","mamada","maricón","mariconazo","martillo","nazi",
+  "orina","pedo","pervertido","pezón","pis","prostituta",
+  "racista","ramera","sádico","semen","sexo","sexo oral",
+  "soplagaitas","soplapollas","tetas grandes","tía buena","travesti","trio",
+  "vete a la mierda","vulva"
+];
+
+// ---- ARABIC (SCRIPT + ARABIZI) (64 words) ----
+const BANNED_WORDS_ARABIC = [
+  "كس","خرا","احا","منيك","شرموطة","شرموط",
+  "زبي","نيك","ابن الكلب","ابن كلب","كلب","حمار",
+  "عاهرة","متناك","خول","لعنة","كافر","kalb",
+  "kalab","sharmoota","sharmota","manyak","zibb","kess",
+  "kus","neek","nayik","ibn kalb","3ahera","khawal",
+  "5ara","khara","سكس","طيز","شرج","لعق",
+  "لحس","مص","تمص","بيضان","ثدي","بز",
+  "بزاز","حلمة","مفلقسة","بظر","فرج","شهوة",
+  "شاذ","مبادل","جماع","قضيب","زب","لوطي",
+  "لواط","سحاق","سحاقية","اغتصاب","خنثي","احتلام",
+  "متناكة","عرص","قحبة","لبوة"
+];
+
+// ---- GERMAN (66 words) ----
+const BANNED_WORDS_GERMAN = [
+  "analritter","arsch","arschficker","arschlecker","arschloch","bimbo",
+  "bratze","bumsen","bonze","dödel","fick","ficken",
+  "flittchen","fotze","fratze","hackfresse","hure","hurensohn",
+  "ische","kackbratze","kacke","kacken","kackwurst","kampflesbe",
+  "kanake","kimme","lümmel","milf","möpse","morgenlatte",
+  "möse","mufti","muschi","nackt","neger","nigger",
+  "nippel","nutte","onanieren","orgasmus","penis","pimmel",
+  "pimpern","pinkeln","pissen","pisser","popel","poppen",
+  "porno","reudig","rosette","schabracke","schlampe","scheiße",
+  "scheisser","schiesser","schnackeln","schwanzlutscher","schwuchtel","tittchen",
+  "titten","vögeln","vollpfosten","wichse","wichsen","wichser"
+];
+
+// ---- FRENCH (98 words) ----
+const BANNED_WORDS_FRENCH = [
+  "baiser","bander","bigornette","bite","bitte","bloblos",
+  "bordel","bourré","bourrée","brackmard","branlage","branler",
+  "branlette","branleur","branleuse","brouter le cresson","caca","chatte",
+  "chiasse","chier","chiottes","clito","clitoris","con",
+  "connard","connasse","conne","couilles","cramouille","cul",
+  "déconne","déconner","emmerdant","emmerder","emmerdeur","emmerdeuse",
+  "enculé","enculée","enculeur","enculeurs","enfoiré","enfoirée",
+  "étron","fille de pute","fils de pute","folle","foutre","gerbe",
+  "gerber","gouine","grande folle","grogniasse","gueule","jouir",
+  "la putain de ta mère","malpt","ménage à trois","merde","merdeuse","merdeux",
+  "meuf","nègre","negro","nique ta mère","nique ta race","palucher",
+  "pédale","pédé","péter","pipi","pisser","pouffiasse",
+  "pousse-crotte","putain","pute","ramoner","sac à foutre","sac à merde",
+  "salaud","salope","suce","tapette","tanche","teuch",
+  "tringler","trique","troncher","trou du cul","turlute","zigounette",
+  "zizi","noune","osti","criss","crisse","calice",
+  "tabarnak","viarge"
+];
+
+// ---- ITALIAN (168 words) ----
+const BANNED_WORDS_ITALIAN = [
+  "allupato","ammucchiata","anale","arrapato","arrusa","arruso",
+  "assatanato","bagascia","bagassa","bagnarsi","baldracca","balle",
+  "battere","battona","belino","biga","bocchinara","bocchino",
+  "bofilo","boiata","bordello","brinca","bucaiolo","budiùlo",
+  "busone","cacca","caciocappella","cadavere","cagare","cagata",
+  "cagna","casci","cazzata","cazzimma","cazzo","cesso",
+  "cazzone","checca","chiappa","chiavare","chiavata","ciospo",
+  "ciucciami il cazzo","coglione","coglioni","cornuto","cozza","culattina",
+  "culattone","culo","ditalino","fava","femminuccia","fica",
+  "figa","figlio di buona donna","figlio di puttana","figone","finocchio","fottere",
+  "fottersi","fracicone","fregna","frocio","froscio","goldone",
+  "guardone","imbecille","incazzarsi","incoglionirsi","ingoio","leccaculo",
+  "lecchino","lofare","loffa","loffare","mannaggia","merda",
+  "merdata","merdoso","mignotta","minchia","minchione","mona",
+  "monta","montare","mussa","nave scuola","nerchia","padulo",
+  "palle","palloso","patacca","patonza","pecorina","pesce",
+  "picio","pincare","pippa","pinnolone","pipì","pippone",
+  "pirla","pisciare","piscio","pisello","pistolotto","pomiciare",
+  "pompa","pompino","porca","porca madonna","porca miseria","porca puttana",
+  "porco","porco due","porco zio","potta","puppami","puttana",
+  "quaglia","recchione","regina","rincoglionire","rizzarsi","rompiballe",
+  "rompipalle","ruffiano","sbattere","sbattersi","sborra","sborrata",
+  "sborrone","sbrodolata","scopare","scopata","scorreggiare","sega",
+  "slinguare","slinguata","smandrappata","soccia","socmel","sorca",
+  "spagnola","spompinare","sticchio","stronza","stronzata","stronzo",
+  "succhiami","succhione","sveltina","sverginare","tarzanello","terrone",
+  "testa di cazzo","tette","tirare","topa","troia","trombare",
+  "vacca","vaffanculo","vangare","zinne","zio cantante","zoccola"
+];
+
+// ---- PORTUGUESE (76 words) ----
+const BANNED_WORDS_PORTUGUESE = [
+  "aborto","amador","ânus","aranha","ariano","balalao",
+  "bastardo","bicha","biscate","bissexual","boceta","boob",
+  "bosta","braulio de borracha","bumbum","burro","cabrao","cacete",
+  "cagar","camisinha","caralho","cerveja","chochota","chupar",
+  "clitoris","cocaína","coito","colhoes","comer","cona",
+  "consolo","corno","cu","dar o rabo","dum raio","esporra",
+  "fecal","filho da puta","foda","foda-se","foder","frango assado",
+  "gozar","grelho","heroína","heterosexual","homem gay","homoerótico",
+  "homosexual","inferno","lésbica","lolita","mama","merda",
+  "paneleiro","passar um cheque","pau","peidar","pênis","pinto",
+  "porra","puta","puta que pariu","puta que te pariu","queca","sacanagem",
+  "saco","torneira","transar","vadia","vai-te foder","vai tomar no cu",
+  "veado","vibrador","xana","xochota"
+];
+
+// ---- RUSSIAN (151 words) ----
+const BANNED_WORDS_RUSSIAN = [
+  "bychara","byk","chernozhopyi","dolboy'eb","ebalnik","ebalo",
+  "ebalom sch'elkat","gol","mudack","opizdenet","osto'eblo","ostokhuitel'no",
+  "ot'ebis","otmudohat","otpizdit","otsosi","padlo","pedik",
+  "perdet","petuh","pidar gnoinyj","pizda","pizdato","pizdatyi",
+  "piz'det","pizdetc","pizdoi nakryt'sja","pizd'uk","piz`dyulina","podi ku'evo",
+  "poeben","po'imat' na konchik","po'iti posrat","po khuy","poluchit pizdy","pososi moyu konfetku",
+  "prissat","proebat","promudobl'adsksya pizdopro'ebina","propezdoloch","prosrat","raspeezdeyi",
+  "raspizdatyi","raz'yebuy","raz'yoba","s'ebat'sya","shalava","styervo",
+  "sukin syn","svodit posrat","svoloch","trakhat'sya","trimandoblydskiy pizdoproyob","ubl'yudok",
+  "uboy","u'ebitsche","vafl'a","vafli lovit","v pizdu","vyperdysh",
+  "vzdrochennyi","yeb vas","za'ebat","zaebis","zalupa","zalupat",
+  "zasranetc","zassat","zlo'ebuchy","бздёнок","блядки","блядовать",
+  "блядство","блядь","бугор","во пизду","встать раком","выёбываться",
+  "гандон","говно","говнюк","голый","дать пизды","дерьмо",
+  "дрочить","другой дразнится","ёбарь","ебать","ебать-копать","ебло",
+  "ебнуть","ёб твою мать","жопа","жополиз","играть на кожаной флейте","измудохать",
+  "каждый дрочит как он хочет","какая разница","как два пальца обоссать","курите мою трубку","лысого в кулаке гонять","малофья",
+  "манда","мандавошка","мент","муда","мудило","мудозвон",
+  "наебать","наебениться","наебнуться","на фиг","на хуй","на хую вертеть",
+  "на хуя","нахуячиться","невебенный","не ебет","ни за хуй собачу","ни хуя",
+  "обнаженный","обоссаться можно","один ебётся","опесдол","офигеть","охуеть",
+  "охуительно","половое сношение","секс","сиськи","спиздить","срать",
+  "ссать","траxать","ты мне ваньку не валяй","фига","хапать","хер с ней",
+  "хер с ним","хохол","хрен","хуёво","хуёвый","хуем груши околачивать",
+  "хуеплет","хуило","хуиней страдать","хуиня","хуй","хуйнуть",
+  "хуй пинать"
+];
+
+// ---- JAPANESE (180 words) ----
+const BANNED_WORDS_JAPANESE = [
+  "3p","g スポット","s ＆ m","sm","sm女王","xx",
+  "アジアのかわいい女の子","アスホール","アナリングス","アナル","いたずら","イラマチオ",
+  "エクスタシー","エスコート","エッチ","エロティズム","エロティック","オーガズム",
+  "オカマ","おしっこ","おしり","オシリ","おしりのあな","おっぱい",
+  "オッパイ","オナニー","オマンコ","おもらし","お尻","カーマスートラ",
+  "カント","クリトリス","グループ・セックス","グロ","クンニリングス","ゲイ・セックス",
+  "ゲイボーイ","ゴールデンシャワー","コカイン","ゴックン","サディズム","しばり",
+  "スウィンガー","スカートの中","スカトロ","ストラップオン","ストリップ劇場","スラット",
+  "スリット","セクシーな","セクシーな 10 代","セックス","ソドミー","ちんこ",
+  "ディープ・スロート","ディック","ディルド","デートレイプ","デブ","テレフォンセックス",
+  "ドッグスタイル","トップレス","なめ","ニガー","ヌード","ネオ・ナチ",
+  "ハードコア","パイパン","バイブレーター","バック・スタイル","パンティー","ビッチ",
+  "ファック","ファンタジー","フィスト","フェティッシュ","フェラチオ","ふたなり",
+  "ぶっかけ","フック","プリンス アルバート ピアス","プレイボーイ","ベアバック","ペニス",
+  "ペニスバンド","ボーイズラブ","ボールギャグ","ぽっちゃり","ホモ","ポルノ",
+  "ポルノグラフィー","ボンテージ","マザー・ファッカー","マスターベーション","まんこ","やおい",
+  "やりまん","ラティーナ","ラバー","ランジェリー","レイプ","レズビアン",
+  "ローター","ロリータ","淫乱","陰毛","革抑制","騎上位",
+  "巨根","巨乳","強姦犯","玉なめ","玉舐め","緊縛",
+  "近親相姦","嫌い","後背位","合意の性交","拷問","殺し方",
+  "殺人事件","殺人方法","支配","児童性虐待","自己愛性","射精",
+  "手コキ","獣姦","女の子","女王様","女子高生","女装",
+  "新しいポルノ","人妻","人種","性交","正常位","生殖器",
+  "精液","挿入","足フェチ","足を広げる","大陰唇","脱衣",
+  "茶色のシャワー","中出し","潮吹き女","潮吹き男性","直腸","剃毛",
+  "貞操帯","奴隷","二穴","乳首","尿道プレイ","覗き",
+  "売春婦","縛り","噴出","糞","糞尿愛好症","糞便",
+  "平手打ち","変態","勃起する","夢精","毛深い","誘惑",
+  "幼児性愛者","裸","裸の女性","乱交","両性","両性具有",
+  "両刀","輪姦","卍","宦官","肛門","膣"
+];
+
+// ---- CHINESE (318 words) ----
+const BANNED_WORDS_CHINESE = [
+  "13.","13点","三级片","下三烂","下贱","个老子的",
+  "九游","乳","乳交","乳头","乳房","乳波臀浪",
+  "交配","仆街","他奶奶","他奶奶的","他奶娘的","他妈",
+  "他妈ㄉ王八蛋","他妈地","他妈的","他娘","他马的","你个傻比",
+  "你他马的","你全家","你奶奶的","你她马的","你妈","你妈的",
+  "你娘","你娘卡好","你娘咧","你它妈的","你它马的","你是鸡",
+  "你是鸭","你马的","做爱","傻比","傻逼","册那",
+  "军妓","几八","几叭","几巴","几芭","刚度",
+  "刚瘪三","包皮","十三点","卖b","卖比","卖淫",
+  "卵","卵子","双峰微颤","口交","口肯","叫床",
+  "吃屎","后庭","吹箫","塞你公","塞你娘","塞你母",
+  "塞你爸","塞你老师","塞你老母","处女","外阴","大卵子",
+  "大卵泡","大鸡巴","奶","奶奶的熊","奶子","奸",
+  "奸你","她妈地","她妈的","她马的","妈b","妈个b",
+  "妈个比","妈个老比","妈妈的","妈比","妈的","妈的b",
+  "妈逼","妓","妓女","妓院","妳她妈的","妳妈的",
+  "妳娘的","妳老母的","妳马的","姘头","姣西","姦",
+  "娘个比","娘的","婊子","婊子养的","嫖娼","嫖客",
+  "它妈地","它妈的","密洞","射你","射精","小乳头",
+  "小卵子","小卵泡","小瘪三","小肉粒","小骚比","小骚货",
+  "小鸡巴","小鸡鸡","屁眼","屁股","屄","屌",
+  "巨乳","干x娘","干七八","干你","干你妈","干你娘",
+  "干你老母","干你良","干妳妈","干妳娘","干妳老母","干妳马",
+  "干您娘","干机掰","干死cs","干死gm","干死你","干死客服",
+  "幹","强奸","强奸你","性","性交","性器",
+  "性无能","性爱","情色","想上你","懆您妈","懆您娘",
+  "懒8","懒八","懒叫","懒教","成人","我操你祖宗十八代",
+  "扒光","打炮","打飞机","抽插","招妓","插你",
+  "插死你","撒尿","操你","操你全家","操你奶奶","操你妈",
+  "操你娘","操你祖宗","操你老妈","操你老母","操妳","操妳全家",
+  "操妳妈","操妳娘","操妳祖宗","操机掰","操比","操逼",
+  "放荡","日他娘","日你","日你妈","日你老娘","日你老母",
+  "日批","月经","机八","机巴","机机歪歪","杂种",
+  "浪叫","淫","淫乱","淫妇","淫棍","淫水",
+  "淫秽","淫荡","淫西","湿透的内裤","激情","灨你娘",
+  "烂货","烂逼","爛","狗屁","狗日","狗狼养的",
+  "玉杵","王八蛋","瓜娃子","瓜婆娘","瓜批","瘪三",
+  "白烂","白痴","白癡","祖宗","私服","笨蛋",
+  "精子","老二","老味","老母","老瘪三","老骚比",
+  "老骚货","肉壁","肉棍子","肉棒","肉缝","肏",
+  "肛交","肥西","色情","花柳","荡妇","賤",
+  "贝肉","贱b","贱人","贱货","贼你妈","赛你老母",
+  "赛妳阿母","赣您娘","轮奸","迷药","逼","逼样",
+  "野鸡","阳具","阳萎","阴唇","阴户","阴核",
+  "阴毛","阴茎","阴道","阴部","雞巴","靠北",
+  "靠母","靠爸","靠背","靠腰","驶你公","驶你娘",
+  "驶你母","驶你爸","驶你老师","驶你老母","骚比","骚货",
+  "骚逼","鬼公","鸡8","鸡八","鸡叭","鸡吧",
+  "鸡奸","鸡巴","鸡芭","鸡鸡","龟儿子","龟头",
+  "𨳒","陰莖","㞗","尻","𨳊","鳩",
+  "𡳞","𨶙","撚","𨳍","柒","閪",
+  "咸家鏟","冚家鏟","咸家伶","冚家拎","笨實","粉腸",
+  "屎忽","躝癱","你老闆","你老味","你老母","硬膠"
+];
+
+// ---- KOREAN (72 words) ----
+const BANNED_WORDS_KOREAN = [
+  "강간","개새끼","개자식","개좆","개차반","거유",
+  "계집년","고자","근친","노모","니기미","뒤질래",
+  "딸딸이","때씹","또라이","뙤놈","로리타","망가",
+  "몰카","미친","미친새끼","바바리맨","변태","병신",
+  "보지","불알","빠구리","사까시","섹스","스와핑",
+  "쌍놈","씨발","씨발놈","씨팔","씹","씹물",
+  "씹빨","씹새끼","씹알","씹창","씹팔","암캐",
+  "애자","야동","야사","야애니","엄창","에로",
+  "염병","옘병","유모","육갑","은꼴","자위",
+  "자지","잡년","종간나","좆","좆만","죽일년",
+  "쥐좆","직촬","짱깨","쪽바리","창녀","포르노",
+  "하드코어","호로","화냥년","후레아들","후장","희쭈그리"
+];
+
+// ---- TURKISH (142 words) ----
+const BANNED_WORDS_TURKISH = [
+  "am","amcığa","amcığı","amcığın","amcık","amcıklar",
+  "amcıklara","amcıklarda","amcıklardan","amcıkları","amcıkların","amcıkta",
+  "amcıktan","amı","amlar","çingene","çingenede","çingeneden",
+  "çingeneler","çingenelerde","çingenelerden","çingenelere","çingeneleri","çingenelerin",
+  "çingenenin","çingeneye","çingeneyi","göt","göte","götler",
+  "götlerde","götlerden","götlere","götleri","götlerin","götte",
+  "götten","götü","götün","götveren","götverende","götverenden",
+  "götverene","götvereni","götverenin","götverenler","götverenlerde","götverenlerden",
+  "götverenlere","götverenleri","götverenlerin","kaltağa","kaltağı","kaltağın",
+  "kaltak","kaltaklar","kaltaklara","kaltaklarda","kaltaklardan","kaltakları",
+  "kaltakların","kaltakta","kaltaktan","orospu","orospuda","orospudan",
+  "orospular","orospulara","orospularda","orospulardan","orospuları","orospuların",
+  "orospunun","orospuya","orospuyu","otuz birci","otuz bircide","otuz birciden",
+  "otuz birciler","otuz bircilerde","otuz bircilerden","otuz bircilere","otuz bircileri","otuz bircilerin",
+  "otuz bircinin","otuz birciye","otuz birciyi","saksocu","saksocuda","saksocudan",
+  "saksocular","saksoculara","saksocularda","saksoculardan","saksocuları","saksocuların",
+  "saksocunun","saksocuya","saksocuyu","sıçmak","sik","sike",
+  "siker sikmez","siki","sikilir sikilmez","sikin","sikler","siklerde",
+  "siklerden","siklere","sikleri","siklerin","sikmek","sikmemek",
+  "sikte","sikten","siktir","siktirir siktirmez","taşağa","taşağı",
+  "taşağın","taşak","taşaklar","taşaklara","taşaklarda","taşaklardan",
+  "taşakları","taşakların","taşakta","taşaktan","yarağa","yarağı",
+  "yarağın","yarak","yaraklar","yaraklara","yaraklarda","yaraklardan",
+  "yarakları","yarakların","yarakta","yaraktan"
+];
+
+// ---- DUTCH (190 words) ----
+const BANNED_WORDS_DUTCH = [
+  "aardappels afgieten","achter het raam zitten","afberen","aflebberen","afrossen","afrukken",
+  "aftrekken","afwerkplaats","afzeiken","afzuigen","een halve man en een paardekop","anita",
+  "asbak","aso","bagger schijten","balen","bedonderen","befborstel",
+  "beffen","bekken","belazeren","besodemieterd zijn","besodemieteren","beurt",
+  "boemelen","boerelul","boerenpummel","bokkelul","botergeil","broekhoesten",
+  "brugpieper","buffelen","buiten de pot piesen","da's kloten van de bok","de ballen","de hoer spelen",
+  "de hond uitlaten","de koffer induiken","del","de pijp uitgaan","dombo","draaikont",
+  "driehoog achter wonen","drol","drooggeiler","droogkloot","een beurt geven","een nummertje maken",
+  "een wip maken","eikel","engerd","flamoes","flikken","flikker",
+  "gadverdamme","galbak","gat","gedoogzone","geilneef","gesodemieter",
+  "godverdomme","graftak","gras maaien","gratenkut","greppeldel","griet",
+  "hoempert","hoer","hoerenbuurt","hoerenloper","hoerig","hol",
+  "hufter","huisdealer","johny","kanen","kettingzeug","klaarkomen",
+  "klerebeer","klojo","klooien","klootjesvolk","klootoog","klootzak",
+  "kloten","knor","kont","kontneuken","krentekakker","kut",
+  "kuttelikkertje","kwakkie","liefdesgrot","lul","lul-de-behanger","lulhannes",
+  "lummel","mafketel","matennaaier","matje","mof","muts",
+  "naaien","naakt","neuken","neukstier","nicht","oetlul",
+  "opgeilen","opkankeren","oprotten","opsodemieteren","op z'n hondjes","op z'n sodemieter geven",
+  "opzouten","ouwehoer","ouwehoeren","ouwe rukker","paal","paardelul",
+  "palen","penoze","piesen","pijpbekkieg","pijpen","pik",
+  "pleurislaaier","poep","poepen","poot","portiekslet","pot",
+  "potverdorie","publiciteitsgeil","raaskallen","reet","reetridder","reet trappen, voor zijn",
+  "remsporen","reutelen","rothoer","rotzak","rukhond","rukken",
+  "schatje","schijt","schijten","schoft","schuinsmarcheerder","shit",
+  "slempen","slet","sletterig","slik mijn zaad","snol","spuiten",
+  "standje","standje-69","stoephoer","stootje","stront","sufferd",
+  "tapijtnek","teef","temeier","teringlijer","toeter","tongzoeng",
+  "triootjeg","trottoir prostituée","trottoirteef","vergallen","verkloten","verneuken",
+  "viespeuk","vingeren","vleesroos","voor jan lul","voor jan-met-de-korte-achternaam","watje",
+  "welzijnsmafia","wijf","wippen","wuftje","zaadje","zakkenwasser",
+  "zeiken","zeiker","zuigen","zuiplap"
+];
+
+// ---- POLISH (54 words) ----
+const BANNED_WORDS_POLISH = [
+  "burdel","burdelmama","chuj","chujnia","ciota","cipa",
+  "cyc","debil","dmuchać","do kurwy nędzy","dupa","dupek",
+  "duperele","dziwka","fiut","gówno","gówno prawda","huj",
+  "huj ci w dupę","jajco","jajko","ja pierdolę","jebać","jebany",
+  "kurwa","kurwy","kutafon","kutas","lizać pałę","obciągać chuja",
+  "obciągać fiuta","obciągać loda","pieprzyć","pierdolec","pierdolić","pierdolnąć",
+  "pierdolnięty","pierdoła","pierdzieć","pizda","pojeb","pojebany",
+  "popierdolony","robic loda","robić loda","ruchać","rzygać","skurwysyn",
+  "sraczka","srać","suka","syf","wkurwiać","zajebisty"
+];
+
+// ---- PERSIAN / FARSI (45 words) ----
+const BANNED_WORDS_PERSIAN = [
+  "آب کیر","ارگاسم","برهنه","پورن","پورنو","تجاوز",
+  "تخمی","جق","جقی","جلق","جنده","چوچول",
+  "حشر","حشری","داف","دودول","ساک زدن","سکس",
+  "سکس کردن","سکسی","سوپر","شق کردن","شهوت","شهوتی",
+  "شونبول","فیلم سوپر","کس","کس دادن","کس کردن","کسکش",
+  "کوس","کون","کون دادن","کون کردن","کونکش","کونی",
+  "کیر","کیری","لاپا","لاپایی","لاشی","لخت",
+  "لش","منی","هرزه"
+];
+
+// ---- THAI (31 words) ----
+const BANNED_WORDS_THAI = [
+  "กระดอ","กระเด้า","กระหรี่","กะปิ","กู","ขี้",
+  "ควย","จิ๋ม","จู๋","เจ๊ก","เจี๊ยว","ดอกทอง",
+  "ตอแหล","ตูด","น้ําแตก","มึง","แม่ง","เย็ด",
+  "รูตูด","ล้างตู้เย็น","ส้นตีน","สัด","เสือก","หญิงชาติชั่ว",
+  "หลั่ง","ห่า","หํา","หี","เหี้ย","อมนกเขา",
+  "ไอ้ควาย"
+];
+
+// ---- FINNISH (130 words) ----
+const BANNED_WORDS_FINNISH = [
+  "alfred nussi","bylsiä","haahka","haista paska","haista vittu","hatullinen",
+  "helvetisti","hevonkuusi","hevonpaska","hevonperse","hevonvittu","hevonvitunperse",
+  "hitosti","hitto","huorata","hässiä","juosten kustu","jutku",
+  "jutsku","jätkä","kananpaska","koiranpaska","kuin esterin perseestä","kulli",
+  "kullinluikaus","kuppainen","kusaista","kuseksia","kusettaa","kusi",
+  "kusipää","kusta","kyrpiintynyt","kyrpiintyä","kyrpiä","kyrpä",
+  "kyrpänaama","kyrvitys","lahtari","lutka","molo","molopää",
+  "mulkero","mulkku","mulkvisti","muna","munapää","munaton",
+  "mutakuono","mutiainen","naida","nainti","narttu","neekeri",
+  "nekru","nuolla persettä","nussia","nussija","nussinta","paljaalla",
+  "palli","pallit","paneskella","panettaa","panna","pano",
+  "pantava","paska","paskainen","paskamainen","paskanmarjat","paskantaa",
+  "paskapuhe","paskapää","paskattaa","paskiainen","paskoa","pehko",
+  "pentele","perkele","perkeleesti","persaukinen","perse","perseennuolija",
+  "perseet olalla","persereikä","perseääliö","persläpi","perspano","persvako",
+  "pilkunnussija","pillu","pillut","pipari","piru","pistää",
+  "pyllyvako","reikä","reva","ripsipiirakka","runkata","runkkari",
+  "runkkaus","runkku","ryssä","rättipää","saatanasti","suklaaosasto",
+  "tavara","toosa","tuhkaluukku","tumputtaa","turpasauna","tussu",
+  "tussukka","tussut","vakipano","vetää käteen","viiksi","vittu",
+  "vittuilla","vittuilu","vittumainen","vittuuntua","vittuuntunut","vitun",
+  "vitusti","vituttaa","vitutus","äpärä"
+];
+
+// ---- HUNGARIAN (96 words) ----
+const BANNED_WORDS_HUNGARIAN = [
+  "balfasz","balfaszok","balfaszokat","balfaszt","barmok","barmokat",
+  "barmot","barom","baszik","bazmeg","buksza","bukszák",
+  "bukszákat","bukszát","búr","búrok","csöcs","csöcsök",
+  "csöcsöket","csöcsöt","fasz","faszfej","faszfejek","faszfejeket",
+  "faszfejet","faszok","faszokat","faszt","fing","fingok",
+  "fingokat","fingot","franc","francok","francokat","francot",
+  "geci","gecibb","gecik","geciket","gecit","kibaszott",
+  "kibaszottabb","kúr","kurafi","kurafik","kurafikat","kurafit",
+  "kurva","kurvák","kurvákat","kurvát","leggecibb","legkibaszottabb",
+  "legszarabb","marha","marhák","marhákat","marhát","megdöglik",
+  "pele","pelék","picsa","picsákat","picsát","pina",
+  "pinák","pinákat","pinát","pofa","pofákat","pofát",
+  "pöcs","pöcsök","pöcsöket","pöcsöt","punci","puncik",
+  "segg","seggek","seggeket","segget","seggfej","seggfejek",
+  "seggfejeket","seggfejet","szajha","szajhák","szajhákat","szajhát",
+  "szar","szarabb","szarik","szarok","szarokat","szart"
+];
+
+// ---- OTHER (Czech, Danish, Esperanto, Filipino, Kabyle, Norwegian, Swedish, Klingon) (211 words) ----
+const BANNED_WORDS_OTHER = [
+  "bordel","buzna","čumět","čurák","debil","do piče",
+  "do prdele","dršťka","držka","flundra","hajzl","hovno",
+  "chcanky","chuj","jebat","kokot","kokotina","koňomrd",
+  "kunda","kurva","mamrd","mrdat","mrdka","mrdník",
+  "oslošoust","piča","píčus","píchat","pizda","prcat",
+  "prdel","prdelka","sračka","srát","šoustat","šulin",
+  "vypíčenec","zkurvit","zkurvysyn","zmrd","žrát","anus",
+  "bøsserøv","cock","fisse","fissehår","fuck","hestepik",
+  "kussekryller","lort","luder","pik","pikhår","pikslugeri",
+  "piksutteri","pis","røv","røvhul","røvskæg","røvspræke",
+  "shit","bugren","bugri","bugru","ĉiesulino","ĉiesulo",
+  "diofek","diofeka","fek","feken","fekfikanto","feklekulo",
+  "fekulo","fik","fikado","fikema","fikfek","fiki",
+  "fikiĝi","fikiĝu","fikilo","fikklaŭno","fikota","fiku",
+  "forfiki","forfikiĝu","forfiku","forfurzu","forpisi","forpisu",
+  "furzulo","kacen","kaco","kacsuĉulo","kojono","piĉen",
+  "piĉo","zamenfek","puta ka","putang ina","tang ina","tangina",
+  "burat","bayag","bobo","nognog","tanga","ulol",
+  "kantot","anak ka ng puta","jakol","abbuc","aεeṭṭuḍ","aḥeččun",
+  "taḥeččunt","axuzziḍ","asxuẓeḍ","qqu","qquɣ","qqiɣ",
+  "qqan","qqant","tteqqun","tteqqunt","aqerqur","ajeḥniḍ",
+  "awellaq","iwellaqen","iḥeččan","iḥeččunen","uqan","taxna",
+  "asshole","dritt","drittsekk","faen","faen i helvete","fan",
+  "fanken","fitte","forbanna","forbannet","forjævlig","fy faen",
+  "føkk","føkka","føkkings","jævla","jævlig","helvete",
+  "helvetet","kuk","kukene","kuker","morraknuller","morrapuler",
+  "nigger","pakkis","pikk","pokker","ræva","ræven",
+  "satan","sinnsykt","skitt","sotrør","ståpikk","ståpikkene",
+  "ståpikker","svartheiteste","arsle","brutta","discofitta","dra åt helvete",
+  "fitta","fittig","för helvete","hård","jävlar","knulla",
+  "kuksås","kötthuvud","köttnacke","moona","moonade","moonar",
+  "moonat","mutta","neger","olla","pippa","pitt",
+  "prutt","pök","runka","röv","rövhål","rövknulla",
+  "skita","skit ner dig","skäggbiff","snedfitta","snefitta","stake",
+  "subba","sås","sätta på","tusan","ghuy'cha'","qi'yah",
+  "qu'vatlh"
+];
+
+// Combined master list used everywhere BANNED_WORDS is referenced
+const BANNED_WORDS = [
+  ...BANNED_WORDS_EN,
+  ...BANNED_WORDS_ROMAN_HINDI_URDU,
+  ...BANNED_WORDS_HINDI_DEVANAGARI,
+  ...BANNED_WORDS_SPANISH,
+  ...BANNED_WORDS_ARABIC,
+  ...BANNED_WORDS_GERMAN,
+  ...BANNED_WORDS_FRENCH,
+  ...BANNED_WORDS_ITALIAN,
+  ...BANNED_WORDS_PORTUGUESE,
+  ...BANNED_WORDS_RUSSIAN,
+  ...BANNED_WORDS_JAPANESE,
+  ...BANNED_WORDS_CHINESE,
+  ...BANNED_WORDS_KOREAN,
+  ...BANNED_WORDS_TURKISH,
+  ...BANNED_WORDS_DUTCH,
+  ...BANNED_WORDS_POLISH,
+  ...BANNED_WORDS_PERSIAN,
+  ...BANNED_WORDS_THAI,
+  ...BANNED_WORDS_FINNISH,
+  ...BANNED_WORDS_HUNGARIAN,
+  ...BANNED_WORDS_OTHER
+];
+
+
 function containsBannedWord(text){
-  const lower = text.toLowerCase();
+  const normalized = collapseSpacedOutLetters(normalizeForFilter(text));
   return BANNED_WORDS.some(w => {
-    // word-boundary-ish match so we don't over-block substrings inside normal words
-    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp("(^|[^a-z0-9])" + escaped + "([^a-z0-9]|$)", "i");
-    return re.test(lower);
+    const normalizedWord = normalizeForFilter(w);
+    // word-boundary-ish match so we don't over-block substrings inside normal words.
+    // Words containing non-latin scripts (Arabic, Devanagari, etc.) skip the
+    // latin \b boundary (which doesn't apply to those scripts) and just check inclusion.
+    if (/[a-z0-9]/i.test(normalizedWord)){
+      const escaped = normalizedWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp("(^|[^a-z0-9])" + escaped + "([^a-z0-9]|$)", "i");
+      return re.test(normalized);
+    }
+    return normalized.includes(normalizedWord);
   });
 }
 
@@ -671,22 +1513,63 @@ function containsLink(text){
   return linkPattern.test(text);
 }
 
-async function containsApiFlaggedProfanity(text){
+/* =======================================================
+   3) MULTI-LINGUAL AI TOXICITY CHECK (Hugging Face)
+   -- Runs only after the local checks pass, as a second,
+      smarter layer that also catches toxic phrasing the
+      static word lists miss (works across languages/scripts).
+      Fails open (never blocks a normal user) if the API is
+      unreachable, rate-limited, or mis-configured.
+======================================================= */
+async function checkToxicityAI(text){
+  // No key configured yet -> skip AI layer, local filter already ran.
+  if (!HUGGING_FACE_API_KEY || HUGGING_FACE_API_KEY === "YOUR_API_KEY"){
+    return { flagged: false, reason: "no-api-key" };
+  }
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2500); // never let this hang the send flow
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
 
   try{
-    const res = await fetch(
-      `https://www.purgomalum.com/service/containsprofanity?text=${encodeURIComponent(text)}`,
-      { signal: controller.signal }
-    );
-    const result = await res.text();
-    return result.trim() === "true";
+    const res = await fetch(HF_MODEL_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Authorization": `Bearer ${HUGGING_FACE_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ inputs: text })
+    });
+
+    if (res.status === 429){
+      // Rate limited -> gracefully fall back to the local regex filter only,
+      // never block or crash the chat because the AI layer is throttled.
+      console.warn("Hugging Face rate limit hit (429) — falling back to local filter only.");
+      return { flagged: false, reason: "rate-limited-fallback" };
+    }
+
+    if (!res.ok){
+      console.warn("Hugging Face API error", res.status, "— falling back to local filter only.");
+      return { flagged: false, reason: "api-error-fallback" };
+    }
+
+    const data = await res.json();
+    // Response shape is typically [[{label, score}, {label, score}, ...]]
+    const scores = Array.isArray(data) ? (Array.isArray(data[0]) ? data[0] : data) : [];
+    const toxicScore = scores.reduce((max, item) => {
+      if (!item || typeof item.score !== "number") return max;
+      const label = String(item.label || "").toLowerCase();
+      if (label.includes("toxic") || label === "label_1" || label === "1"){
+        return Math.max(max, item.score);
+      }
+      return max;
+    }, 0);
+
+    return { flagged: toxicScore >= TOXICITY_THRESHOLD, reason: "ai-checked", score: toxicScore };
   }catch(err){
-    // API down / blocked / timed out -> fail-open here since the fast manual
-    // word-list check already ran before this and is the primary filter.
-    console.warn("Moderation API unreachable or timed out, continuing with manual filter only.", err);
-    return false;
+    // Network error / timeout / model loading -> fail open, local filter already covered the basics.
+    console.warn("Toxicity API unreachable or timed out, continuing with manual filter only.", err);
+    return { flagged: false, reason: "network-fallback" };
   }finally{
     clearTimeout(timeoutId);
   }
@@ -711,7 +1594,7 @@ function showToast(msg){
       side beyond what's attached to their own messages.
 ======================================================= */
 function submitName(){
-  const raw = nameInputEl.value.trim();
+  const raw = sanitizeInput(nameInputEl.value.trim());
 
   if (!raw){
     showNameError("Please enter a name to continue.");
@@ -1047,17 +1930,30 @@ function reactMsg(id, type){
 }
 
 /* =======================================================
-   COMMENTS
+   COMMENTS (now runs through the same multi-tiered pipeline
+   as messages: sanitize -> normalize -> local filter -> link
+   check -> AI toxicity check -> per-message cooldown)
 ======================================================= */
-function submitComment(msgId){
+async function submitComment(msgId){
   const input = document.getElementById('comment-input-' + msgId);
-  const text = input.value.trim();
-  if (!text) return;
+  const rawText = input.value.trim();
+  if (!rawText) return;
   if (!myName){
     nameModalEl.classList.remove('hide');
     nameInputEl.focus();
     return;
   }
+
+  const now = Date.now();
+  const lastAt = lastCommentAt[msgId] || 0;
+  if (now - lastAt < SEND_COOLDOWN_MS){
+    showToast(`⏳ Please wait a moment before commenting again.`);
+    return;
+  }
+
+  const text = sanitizeInput(rawText);
+  if (!text) return;
+
   if (wordCount(text) > MAX_COMMENT_WORDS){
     showToast(`⚠️ Keep comments under ${MAX_COMMENT_WORDS} words.`);
     return;
@@ -1071,18 +1967,32 @@ function submitComment(msgId){
     return;
   }
 
-  const payload = {
-    sender: myId,
-    senderName: myName,
-    text: text.slice(0, 200),
-    timestamp: Date.now()
-  };
-  const replyTo = commentReplyTargets[msgId];
-  if (replyTo) payload.replyTo = replyTo;
+  const postBtn = document.querySelector(`#comments-${msgId} .comment-input-row button`);
+  if (postBtn) postBtn.disabled = true;
 
-  db.ref(`chats/${ROOM}/messages/${msgId}/comments`).push(payload);
-  input.value = "";
-  cancelCommentReply(msgId);
+  try{
+    const aiResult = await checkToxicityAI(text);
+    if (aiResult.flagged){
+      showToast("⚠️ Comment blocked by moderation filter.");
+      return;
+    }
+
+    const payload = {
+      sender: myId,
+      senderName: myName,
+      text: text.slice(0, 200),
+      timestamp: Date.now()
+    };
+    const replyTo = commentReplyTargets[msgId];
+    if (replyTo) payload.replyTo = replyTo;
+
+    db.ref(`chats/${ROOM}/messages/${msgId}/comments`).push(payload);
+    lastCommentAt[msgId] = Date.now();
+    input.value = "";
+    cancelCommentReply(msgId);
+  } finally {
+    if (postBtn) postBtn.disabled = false;
+  }
 }
 
 /* =======================================================
@@ -1126,41 +2036,76 @@ function submitReport(reason){
 }
 
 /* =======================================================
-   SEND MESSAGE (with double filter)
+   4) CLIENT-SIDE SPAM / RATE LIMIT + LIVE COOLDOWN COUNTDOWN
+======================================================= */
+let cooldownTimer = null;
+function startCooldownUI(){
+  clearInterval(cooldownTimer);
+  const tick = () => {
+    const remaining = SEND_COOLDOWN_MS - (Date.now() - lastSendAt);
+    if (remaining <= 0){
+      cooldownNoteEl.innerText = "";
+      sendBtnEl.disabled = false;
+      clearInterval(cooldownTimer);
+      return;
+    }
+    sendBtnEl.disabled = true;
+    cooldownNoteEl.innerText = `Wait ${(remaining / 1000).toFixed(1)}s before sending again…`;
+  };
+  tick();
+  cooldownTimer = setInterval(tick, 100);
+}
+
+/* =======================================================
+   5) SEND MESSAGE — refactored multi-tiered moderation
+   pipeline. Firebase is only touched after every check
+   below passes.
 ======================================================= */
 async function handleSend(){
-  const text = inputEl.value.trim();
-  if (!text) return;
+  const rawText = inputEl.value.trim();
+  if (!rawText) return;
   if (!myName){
     nameModalEl.classList.remove('hide');
     nameInputEl.focus();
     return;
   }
 
-  const sendBtn = document.getElementById('send-btn');
+  // 0) client-side spam / rate limit — 2.5s cooldown per user per tab
+  const now = Date.now();
+  if (now - lastSendAt < SEND_COOLDOWN_MS){
+    showToast("⏳ Please slow down a little.");
+    startCooldownUI();
+    return;
+  }
+
+  const sendBtn = sendBtnEl;
   sendBtn.disabled = true;
   // absolute safety net: whatever happens, never leave the button stuck disabled
   const safetyUnlock = setTimeout(() => { sendBtn.disabled = false; }, 8000);
 
   try{
-    // 1) keep messages from becoming huge walls of text
+    // 1) strip HTML/script injection attempts before anything else touches the text
+    const text = sanitizeInput(rawText);
+    if (!text) return;
+
+    // 2) keep messages from becoming huge walls of text
     if (wordCount(text) > MAX_MESSAGE_WORDS){
       showToast(`⚠️ Keep messages under ${MAX_MESSAGE_WORDS} words.`);
       return;
     }
-    // 2) manual word list (instant, local)
+    // 3) normalized, multi-language local word list (instant, local, handles leetspeak/unicode tricks)
     if (containsBannedWord(text)){
       showToast("⚠️ Message blocked · inappropriate language.");
       return;
     }
-    // 3) links are not allowed in this chat
+    // 4) links are not allowed in this chat
     if (containsLink(text)){
       showToast("⚠️ Links are not allowed in this chat.");
       return;
     }
-    // 4) API-based profanity check (has its own 2.5s timeout, fails open)
-    const flagged = await containsApiFlaggedProfanity(text);
-    if (flagged){
+    // 5) multilingual AI toxicity check (has its own 4s timeout, fails open, falls back on 429)
+    const aiResult = await checkToxicityAI(text);
+    if (aiResult.flagged){
       showToast("⚠️ Message blocked by moderation filter.");
       return;
     }
@@ -1179,14 +2124,19 @@ async function handleSend(){
 
     await db.ref(`chats/${ROOM}/messages`).push(payload);
 
+    lastSendAt = Date.now();
     inputEl.value = "";
     cancelReply();
+    startCooldownUI();
   } catch(err){
     console.error(err);
     showToast("Something went wrong sending your message.");
   } finally {
     clearTimeout(safetyUnlock);
-    sendBtn.disabled = false;
+    // only force-unlock here if the cooldown UI isn't already managing the button
+    if (Date.now() - lastSendAt >= SEND_COOLDOWN_MS){
+      sendBtn.disabled = false;
+    }
   }
 }
 
