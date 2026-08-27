@@ -26,53 +26,15 @@
     padding:16px;
   }
 
-  /* =======================================================
-     PAGE SHELL
-     The ad slot(s) and the chat widget are two structurally
-     separate, non-nested containers so live UGC never renders
-     inside (or adjacent-in-DOM to) an ad unit. Keep it this way.
-  ======================================================= */
-  #page-shell{
-    width:100%;
-    max-width:520px;
-    display:flex;
-    flex-direction:column;
-    gap:14px;
-  }
-
-  /* Placeholder ad slot - isolated from the chat container below.
-     Swap the inner comment for your real AdSense <ins> tag.
-     Never place ad code inside #app or #messages. */
-  .adsense-slot{
-    width:100%;
-    min-height:90px;
-    background:#eef0f2;
-    border:1px dashed #c9ced3;
-    border-radius:12px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:11px;
-    color:var(--text-dim);
-  }
-  /*
-  <ins class="adsbygoogle"
-       style="display:block"
-       data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
-       data-ad-slot="XXXXXXXXXX"
-       data-ad-format="auto"
-       data-full-width-responsive="true"></ins>
-  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-  */
-
   #app{
     width:100%;
+    max-width:520px;
     background:var(--panel);
     border-radius:20px;
     overflow:hidden;
     display:flex;
     flex-direction:column;
-    height:80vh;
+    height:88vh;
     box-shadow:0 20px 60px rgba(0,0,0,0.10);
     border:1px solid #e4e7ea;
   }
@@ -504,49 +466,38 @@
 
   @media (max-width:480px){
     body{padding:0;}
-    #page-shell{max-width:100%;}
-    #app{height:100vh;border-radius:0;border:none;}
+    #app{height:100vh;max-width:100%;border-radius:0;border:none;}
     .msg-row{max-width:88%;}
   }
 </style>
 
-<div id="page-shell">
-
-  <!-- Ad slot #1 - deliberately OUTSIDE and a sibling of #app, never inside the chat DOM tree -->
-  <div class="adsense-slot" id="ad-slot-top">Ad slot (top) — isolated from chat content</div>
-
-  <div id="app">
-    <div id="header">
-      <div class="title">
-        <strong>🌐 Creshy Hidden Group Chat</strong>
-        <span>No names, no hesitation · just talk freely</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <div id="online-pill"><span id="online-count">0</span></div>
-      </div>
+<div id="app">
+  <div id="header">
+    <div class="title">
+      <strong>🌐 Creshy Hidden Group Chat</strong>
+      <span>No names, no hesitation · just talk freely</span>
     </div>
-
-    <div id="notice">This is a fully anonymous space. Please respect everyone. Adult, abusive, or inappropriate content is automatically filtered, and links are not allowed. If you spot spam or anything that shouldn't be here, report it immediately using the ⚑ button.</div>
-
-    <div id="messages"></div>
-
-    <div id="reply-preview">
-      <div class="rp-text" id="reply-preview-text"></div>
-      <button onclick="cancelReply()">✕</button>
-    </div>
-
-    <div id="footer">
-      <div id="footer-row">
-        <input type="text" id="msg-input" placeholder="Message the group..." autocomplete="off" maxlength="450" disabled>
-        <button id="send-btn" onclick="handleSend()" disabled>Send</button>
-      </div>
-      <div id="cooldown-note"></div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div id="online-pill"><span id="online-count">0</span></div>
     </div>
   </div>
 
-  <!-- Ad slot #2 - also fully isolated from the chat/messages container -->
-  <div class="adsense-slot" id="ad-slot-bottom">Ad slot (bottom) — isolated from chat content</div>
+  <div id="notice">This is a fully anonymous space. Please respect everyone. Adult, abusive, or inappropriate content is automatically filtered, and links are not allowed. If you spot spam or anything that shouldn't be here, report it immediately using the ⚑ button.</div>
 
+  <div id="messages"></div>
+
+  <div id="reply-preview">
+    <div class="rp-text" id="reply-preview-text"></div>
+    <button onclick="cancelReply()">✕</button>
+  </div>
+
+  <div id="footer">
+    <div id="footer-row">
+      <input type="text" id="msg-input" placeholder="Message the group..." autocomplete="off" maxlength="450" disabled>
+      <button id="send-btn" onclick="handleSend()" disabled>Send</button>
+    </div>
+    <div id="cooldown-note"></div>
+  </div>
 </div>
 
 <!-- NAME MODAL (required before sending any message) -->
@@ -591,14 +542,14 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const ROOM = "group_room_v1";     // separate from the old 1-1 anon chat data
-const MSG_LIFETIME_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MSG_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
 const REPORT_HIDE_THRESHOLD = 3;   // auto-hide a message after N reports
 const MAX_MESSAGE_WORDS = 80;      // keep messages readable, no wall-of-text spam
 const MAX_COMMENT_WORDS = 40;      // comments stay short by design
 
 // ---- Hugging Face multilingual toxicity model ----
 // Get a free token at https://huggingface.co/settings/tokens and paste it below.
-const HUGGING_FACE_API_KEY = "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";
+const HUGGING_FACE_API_KEY = "YOUR_API_KEY";
 const HF_MODEL_URL = "https://api-inference.huggingface.co/models/textdetox/multilingual-toxic-xlm-roberta";
 const TOXICITY_THRESHOLD = 0.70;
 
@@ -1661,7 +1612,7 @@ function joinRoom(){
 }
 
 /* =======================================================
-   AUTO-DELETE SWEEP (24h)
+   AUTO-DELETE SWEEP (1 week)
    Best-effort client-side cleanup since Spark plan has no
    backend scheduler. Any active client helps clean stale data.
 ======================================================= */
@@ -1687,7 +1638,7 @@ function listenMessages(){
     const id = snap.key;
     if (renderedIds.has(id)) return;
 
-    // skip if already older than 24h (edge case: was added just before expiry)
+    // skip if already older than the message lifetime (edge case: was added just before expiry)
     if (Date.now() - msg.timestamp > MSG_LIFETIME_MS) return;
     // skip if hidden due to reports
     if (msg.reportCount && msg.reportCount >= REPORT_HIDE_THRESHOLD) return;
