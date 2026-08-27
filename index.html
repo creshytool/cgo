@@ -1,0 +1,1064 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Creshy Hidden Group Chat</title>
+<style>
+  :root{
+    --bg:#f7f7f5;
+    --panel:#ffffff;
+    --panel-2:#f2f3f5;
+    --accent:#00d1b2;
+    --accent-2:#ff9d4d;
+    --text:#1b1f23;
+    --text-dim:#707b85;
+    --danger:#ff5c5c;
+    --bubble-you:#00d1b2;
+    --bubble-other:#eef1f3;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    display:flex;
+    justify-content:center;
+    padding:16px;
+  }
+  #app{
+    width:100%;
+    max-width:520px;
+    background:var(--panel);
+    border-radius:20px;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    height:88vh;
+    box-shadow:0 20px 60px rgba(0,0,0,0.10);
+    border:1px solid #e4e7ea;
+  }
+
+  /* HEADER */
+  #header{
+    background:linear-gradient(135deg,#eafaf6,#f6f5f2);
+    padding:14px 16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:1px solid #e4e7ea;
+  }
+  #header .title{
+    display:flex;
+    flex-direction:column;
+  }
+  #header .title strong{font-size:15px;letter-spacing:.3px;}
+  #header .title span{font-size:11px;color:var(--text-dim);margin-top:2px;}
+  #online-pill{
+    background:rgba(0,209,178,0.12);
+    color:var(--accent);
+    font-size:11px;
+    padding:5px 10px;
+    border-radius:20px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-weight:600;
+  }
+  #online-pill::before{
+    content:"";
+    width:7px;height:7px;border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 8px var(--accent);
+  }
+
+  /* NOTICE */
+  #notice{
+    font-size:10.5px;
+    color:var(--text-dim);
+    text-align:center;
+    padding:6px 10px;
+    background:#f2f3f5;
+    border-bottom:1px solid #e4e7ea;
+  }
+
+  /* MESSAGES */
+  #messages{
+    flex:1;
+    overflow-y:auto;
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    background:
+      radial-gradient(circle at 20% 10%, rgba(0,209,178,0.04), transparent 40%),
+      var(--bg);
+  }
+  .msg-row{
+    display:flex;
+    flex-direction:column;
+    max-width:82%;
+    animation:fadeIn .25s ease;
+  }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  .msg-row.you{align-self:flex-end;align-items:flex-end;}
+  .msg-row.other{align-self:flex-start;align-items:flex-start;}
+
+  .sender-name{
+    font-size:10.5px;
+    color:var(--accent-2);
+    margin:0 6px 3px;
+    font-weight:600;
+  }
+
+  .reply-ref{
+    font-size:11px;
+    color:var(--text-dim);
+    background:rgba(0,0,0,0.04);
+    border-left:3px solid var(--accent);
+    padding:4px 8px;
+    border-radius:6px;
+    margin-bottom:4px;
+    max-width:100%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+
+  .bubble{
+    padding:9px 13px;
+    border-radius:var(--radius);
+    font-size:14px;
+    line-height:1.4;
+    word-break:break-word;
+    position:relative;
+  }
+  .you .bubble{
+    background:var(--bubble-you);
+    color:#04211c;
+    border-bottom-right-radius:4px;
+  }
+  .other .bubble{
+    background:var(--bubble-other);
+    color:var(--text);
+    border-bottom-left-radius:4px;
+  }
+  .msg-meta{
+    font-size:9.5px;
+    color:var(--text-dim);
+    margin-top:3px;
+    padding:0 4px;
+  }
+
+  /* ACTION BAR under each message */
+  .msg-actions{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-top:4px;
+    padding:0 4px;
+  }
+  .action-btn{
+    background:none;
+    border:none;
+    color:var(--text-dim);
+    font-size:11px;
+    display:flex;
+    align-items:center;
+    gap:3px;
+    cursor:pointer;
+    padding:2px 4px;
+    border-radius:6px;
+    transition:color .15s;
+  }
+  .action-btn:hover{color:var(--text);}
+  .action-btn.active-like{color:var(--accent);}
+  .action-btn.active-dislike{color:var(--danger);}
+  .action-btn.active-heart{color:#ff4d6d;}
+  .action-btn.report-btn:hover{color:var(--danger);}
+
+  /* COMMENTS */
+  .comments-box{
+    margin-top:6px;
+    width:100%;
+    background:rgba(0,0,0,0.03);
+    border-radius:10px;
+    padding:8px;
+    display:none;
+  }
+  .comments-box.open{display:block;}
+  .comment-item{
+    font-size:12px;
+    padding:4px 0;
+    border-bottom:1px solid rgba(0,0,0,0.06);
+  }
+  .comment-item:last-child{border-bottom:none;}
+  .comment-item .c-name{color:var(--accent-2);font-weight:600;margin-right:4px;}
+  .comment-input-row{
+    display:flex;
+    gap:6px;
+    margin-top:6px;
+  }
+  .comment-input-row input{
+    flex:1;
+    background:#f5f6f7;
+    border:1px solid #d9dde1;
+    color:var(--text);
+    font-size:12px;
+    padding:6px 8px;
+    border-radius:8px;
+    outline:none;
+  }
+  .comment-input-row button{
+    background:var(--accent);
+    border:none;
+    color:#04211c;
+    font-size:11px;
+    font-weight:700;
+    padding:0 10px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+
+  .system-msg{
+    align-self:center;
+    font-size:11px;
+    color:var(--text-dim);
+    background:rgba(0,0,0,0.045);
+    padding:4px 12px;
+    border-radius:20px;
+    margin:4px 0;
+  }
+
+  /* REPLY PREVIEW BAR (above input) */
+  #reply-preview{
+    display:none;
+    background:#f5f6f7;
+    border-top:1px solid #e4e7ea;
+    padding:8px 14px;
+    font-size:12px;
+    color:var(--text-dim);
+    align-items:center;
+    justify-content:space-between;
+  }
+  #reply-preview.show{display:flex;}
+  #reply-preview .rp-text{
+    border-left:3px solid var(--accent);
+    padding-left:8px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    max-width:85%;
+  }
+  #reply-preview button{
+    background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;
+  }
+
+  /* INPUT */
+  #footer{
+    display:flex;
+    gap:8px;
+    padding:12px;
+    background:var(--panel-2);
+    border-top:1px solid #e4e7ea;
+  }
+  #msg-input{
+    flex:1;
+    background:#ffffff;
+    border:1px solid #d9dde1;
+    color:var(--text);
+    padding:11px 14px;
+    border-radius:22px;
+    outline:none;
+    font-size:14px;
+  }
+  #send-btn{
+    background:var(--accent);
+    border:none;
+    color:#04211c;
+    font-weight:700;
+    padding:0 18px;
+    border-radius:22px;
+    cursor:pointer;
+    font-size:14px;
+  }
+  #send-btn:disabled{opacity:0.5;cursor:not-allowed;}
+
+  /* REPORT MODAL */
+  #report-modal{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,0.7);
+    display:none;
+    align-items:center;justify-content:center;
+    z-index:60;
+    padding:20px;
+  }
+  #report-modal.show{display:flex;}
+  #report-box{
+    background:var(--panel);
+    border:1px solid #e4e7ea;
+    border-radius:16px;
+    padding:20px;
+    width:100%;
+    max-width:320px;
+  }
+  #report-box h4{margin:0 0 10px;font-size:14px;}
+  .report-reason{
+    display:block;
+    width:100%;
+    text-align:left;
+    background:#f5f6f7;
+    border:1px solid #d9dde1;
+    color:var(--text);
+    padding:9px 12px;
+    border-radius:9px;
+    margin-bottom:7px;
+    cursor:pointer;
+    font-size:12.5px;
+  }
+  .report-reason:hover{border-color:var(--danger);color:var(--danger);}
+  #report-cancel{
+    width:100%;
+    background:none;
+    border:1px solid #d9dde1;
+    color:var(--text-dim);
+    padding:9px;
+    border-radius:9px;
+    cursor:pointer;
+    margin-top:4px;
+    font-size:12.5px;
+  }
+
+  /* NAME MODAL - shown once per visit, blocks chat until a name is given */
+  #name-modal{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,0.72);
+    display:flex;
+    align-items:center;justify-content:center;
+    z-index:70;
+    padding:20px;
+  }
+  #name-modal.hide{display:none;}
+  #name-box{
+    background:var(--panel);
+    border:1px solid #e4e7ea;
+    border-radius:16px;
+    padding:22px;
+    width:100%;
+    max-width:320px;
+    text-align:center;
+  }
+  #name-box .name-icon{
+    font-size:28px;
+    margin-bottom:6px;
+  }
+  #name-box h4{margin:0 0 6px;font-size:16px;}
+  #name-box p{
+    font-size:12px;
+    color:var(--text-dim);
+    margin:0 0 14px;
+    line-height:1.5;
+  }
+  #name-input{
+    width:100%;
+    background:#f5f6f7;
+    border:1px solid #d9dde1;
+    color:var(--text);
+    font-size:14px;
+    padding:11px 14px;
+    border-radius:22px;
+    outline:none;
+    margin-bottom:10px;
+  }
+  #name-input.invalid{border-color:var(--danger);}
+  #name-error{
+    font-size:11px;
+    color:var(--danger);
+    min-height:14px;
+    margin-bottom:8px;
+  }
+  #name-submit{
+    width:100%;
+    background:var(--accent);
+    border:none;
+    color:#04211c;
+    font-weight:700;
+    padding:11px;
+    border-radius:22px;
+    cursor:pointer;
+    font-size:14px;
+  }
+  #name-submit:disabled{opacity:0.5;cursor:not-allowed;}
+
+  #toast{
+    position:fixed;
+    bottom:20px;left:50%;
+    transform:translateX(-50%);
+    background:#23282d;
+    color:#fff;
+    padding:10px 18px;
+    border-radius:20px;
+    font-size:12.5px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.4);
+    z-index:80;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s, transform .25s;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:#d3d7db;border-radius:10px;}
+
+  @media (max-width:480px){
+    body{padding:0;}
+    #app{height:100vh;max-width:100%;border-radius:0;border:none;}
+    .msg-row{max-width:88%;}
+  }
+</style>
+
+
+
+<div id="app">
+  <div id="header">
+    <div class="title">
+      <strong>🌐 Creshy Hidden Group Chat</strong>
+      <span>No names, no hesitation · just talk freely</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div id="online-pill"><span id="online-count">0</span></div>
+    </div>
+  </div>
+
+  <div id="notice">This is a fully anonymous space · no names are shown. Please respect everyone. Adult, abusive, or inappropriate content is automatically filtered, and links are not allowed. If you spot spam or anything that shouldn't be here, report it immediately using the ⚑ button.</div>
+
+  <div id="messages"></div>
+
+  <div id="reply-preview">
+    <div class="rp-text" id="reply-preview-text"></div>
+    <button onclick="cancelReply()">✕</button>
+  </div>
+
+  <div id="footer">
+    <input type="text" id="msg-input" placeholder="Message the group..." autocomplete="off" disabled="">
+    <button id="send-btn" onclick="handleSend()" disabled="">Send</button>
+  </div>
+</div>
+
+<!-- NAME MODAL (required before sending any message) -->
+<div id="name-modal">
+  <div id="name-box">
+    <div class="name-icon">👋</div>
+    <h4>What should we call you?</h4>
+    <p>Pick a display name to join the chat. It's shown next to your messages · your identity still stays private.</p>
+    <input type="text" id="name-input" placeholder="Enter a name..." maxlength="24" autocomplete="off">
+    <div id="name-error"></div>
+    <button id="name-submit" onclick="submitName()">Join Chat</button>
+  </div>
+</div>
+
+<!-- REPORT MODAL -->
+<div id="report-modal">
+  <div id="report-box">
+    <h4>Report this message</h4>
+    <button class="report-reason" onclick="submitReport('Adult / sexual content')">🔞 Adult / sexual content</button>
+    <button class="report-reason" onclick="submitReport('Abuse / harassment')">😡 Abuse / harassment</button>
+    <button class="report-reason" onclick="submitReport('Spam')">📢 Spam</button>
+    <button class="report-reason" onclick="submitReport('Hate speech')">🚫 Hate speech</button>
+    <button class="report-reason" onclick="submitReport('Other')">⋯ Other</button>
+    <button id="report-cancel" onclick="closeReportModal()">Cancel</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<script>
+/* =======================================================
+   CONFIG
+======================================================= */
+const firebaseConfig = {
+  databaseURL: "https://creshy-live-default-rtdb.firebaseio.com"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const ROOM = "group_room_v1";     // separate from the old 1-1 anon chat data
+const MSG_LIFETIME_MS = 24 * 60 * 60 * 1000; // 24 hours
+const REPORT_HIDE_THRESHOLD = 3;   // auto-hide a message after N reports
+
+let myId = "u" + Math.floor(Math.random() * 1000000) + Date.now().toString(36);
+let myName = null;           // no identity is stored/verified · just a display label the user picks
+let replyTarget = null;      // {id, text, sender}
+let reportTargetId = null;
+
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('msg-input');
+const onlineCountEl = document.getElementById('online-count');
+const nameModalEl = document.getElementById('name-modal');
+const nameInputEl = document.getElementById('name-input');
+const nameErrorEl = document.getElementById('name-error');
+const sendBtnEl = document.getElementById('send-btn');
+
+/* =======================================================
+   BAD WORDS FILTER (manual list)
+   -- Extend this array any time. Matching is case-insensitive
+      and works on Roman-Urdu + English words.
+======================================================= */
+const BANNED_WORDS = [
+  // Merged from a hand-picked custom set + the open-source LDNOOBW
+  // profanity lists (English + Romanized Hindi/Urdu). 534 unique words.
+  // Source: github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words (MIT)
+  // Add/remove words freely below, one per line or comma-separated.
+  "fuck","fucking","shit","bitch","asshole","bastard",
+  "slut","whore","dick","pussy","cock","cunt",
+  "nigger","nigga","porn","sex video","nude","nudes",
+  "xxx","rape","suicide bomb","chutiya","chutiye","madarchod",
+  "behenchod","bhosdike","bhosdiwala","randi","randiya","kutta",
+  "kutti","harami","haramzada","gaand","gandu","lund",
+  "loda","chodu","chod","tatti","kanjar","kanjri",
+  "saali","saale","2g1c","2 girls 1 cup","acrotomophilia","alabama hot pocket",
+  "alaskan pipeline","anal","anilingus","anus","apeshit","arsehole",
+  "ass","assmunch","auto erotic","autoerotic","babeland","baby batter",
+  "baby juice","ball gag","ball gravy","ball kicking","ball licking","ball sack",
+  "ball sucking","bangbros","bangbus","bareback","barely legal","barenaked",
+  "bastardo","bastinado","bbw","bdsm","beaner","beaners",
+  "beaver cleaver","beaver lips","beastiality","bestiality","big black","big breasts",
+  "big knockers","big tits","bimbos","birdlock","bitches","black cock",
+  "blonde action","blonde on blonde action","blowjob","blow job","blow your load","blue waffle",
+  "blumpkin","bollocks","bondage","boner","boob","boobs",
+  "booty call","brown showers","brunette action","bukkake","bulldyke","bullet vibe",
+  "bullshit","bung hole","bunghole","busty","butt","buttcheeks",
+  "butthole","camel toe","camgirl","camslut","camwhore","carpet muncher",
+  "carpetmuncher","chocolate rosebuds","cialis","circlejerk","cleveland steamer","clit",
+  "clitoris","clover clamps","clusterfuck","cocks","coprolagnia","coprophilia",
+  "cornhole","coon","coons","creampie","cum","cumming",
+  "cumshot","cumshots","cunnilingus","darkie","date rape","daterape",
+  "deep throat","deepthroat","dendrophilia","dildo","dingleberry","dingleberries",
+  "dirty pillows","dirty sanchez","doggie style","doggiestyle","doggy style","doggystyle",
+  "dog style","dolcett","domination","dominatrix","dommes","donkey punch",
+  "double dong","double penetration","dp action","dry hump","dvda","eat my ass",
+  "ecchi","ejaculation","erotic","erotism","escort","eunuch",
+  "fag","faggot","fecal","felch","fellatio","feltch",
+  "female squirting","femdom","figging","fingerbang","fingering","fisting",
+  "foot fetish","footjob","frotting","fuck buttons","fuckin","fucktards",
+  "fudge packer","fudgepacker","futanari","gangbang","gang bang","gay sex",
+  "genitals","giant cock","girl on","girl on top","girls gone wild","goatcx",
+  "goatse","god damn","gokkun","golden shower","goodpoop","goo girl",
+  "goregasm","grope","group sex","g-spot","guro","hand job",
+  "handjob","hard core","hardcore","hentai","homoerotic","honkey",
+  "hooker","horny","hot carl","hot chick","how to kill","how to murder",
+  "huge fat","humping","incest","intercourse","jack off","jail bait",
+  "jailbait","jelly donut","jerk off","jigaboo","jiggaboo","jiggerboo",
+  "jizz","juggs","kike","kinbaku","kinkster","kinky",
+  "knobbing","leather restraint","leather straight jacket","lemon party","livesex","lolita",
+  "lovemaking","make me come","male squirting","masturbate","masturbating","masturbation",
+  "menage a trois","milf","missionary position","mong","motherfucker","mound of venus",
+  "mr hands","muff diver","muffdiving","nambla","nawashi","negro",
+  "neonazi","nig nog","nimphomania","nipple","nipples","nsfw",
+  "nsfw images","nudity","nutten","nympho","nymphomania","octopussy",
+  "omorashi","one cup two girls","one guy one jar","orgasm","orgy","paedophile",
+  "paki","panties","panty","pedobear","pedophile","pegging",
+  "penis","phone sex","piece of shit","pikey","pissing","piss pig",
+  "pisspig","playboy","pleasure chest","pole smoker","ponyplay","poof",
+  "poon","poontang","punany","poop chute","poopchute","porno",
+  "pornography","prince albert piercing","pthc","pubes","queaf","queef",
+  "quim","raghead","raging boner","raping","rapist","rectum",
+  "reverse cowgirl","rimjob","rimming","rosy palm","rosy palm and her 5 sisters","rusty trombone",
+  "sadism","santorum","scat","schlong","scissoring","semen",
+  "sex","sexcam","sexo","sexy","sexual","sexually",
+  "sexuality","shaved beaver","shaved pussy","shemale","shibari","shitblimp",
+  "shitty","shota","shrimping","skeet","slanteye","s&m",
+  "smut","snatch","snowballing","sodomize","sodomy","spastic",
+  "spic","splooge","splooge moose","spooge","spread legs","spunk",
+  "strap on","strapon","strappado","strip club","style doggy","suck",
+  "sucks","suicide girls","sultry women","swastika","swinger","tainted love",
+  "taste my","tea bagging","threesome","throating","thumbzilla","tied up",
+  "tight white","tit","tits","titties","titty","tongue in a",
+  "topless","tosser","towelhead","tranny","tribadism","tub girl",
+  "tubgirl","tushy","twat","twink","twinkie","two girls one cup",
+  "undressing","upskirt","urethra play","urophilia","vagina","venus mound",
+  "viagra","vibrator","violet wand","vorarephilia","voyeur","voyeurweb",
+  "voyuer","vulva","wank","wetback","wet dream","white power",
+  "worldsex","wrapping men","wrinkled starfish","xx","yaoi","yellow showers",
+  "yiffy","zoophilia","🖕","aand","aandu","balatkar",
+  "balatkari","behen chod","beti chod","bhadva","bhadve","bhandve",
+  "bhangi","bhootni ke","bhosad","bhosadi ke","boobe","chakke",
+  "chinaal","chinki","chodu bhagat","chooche","choochi","choope",
+  "choot","choot ke baal","chootia","chootiya","chuche","chuchi",
+  "chudaap","chudai khanaa","chudam chudai","chude","chut","chut ka chuha",
+  "chut ka churan","chut ka mail","chut ke baal","chut ke dhakkan","chut maarli","chutad",
+  "chutadd","chutan","chutia","gaandfat","gaandmasti","gaandufad",
+  "gandfattu","gashti","gasti","ghassa","ghasti","gucchi",
+  "gucchu","haramzade","hawas","hawas ke pujari","hijda","hijra",
+  "jhant","jhant chaatu","jhant ka keeda","jhant ke baal","jhant ke pissu","jhantu",
+  "kamine","kaminey","kutta kamina","kutte ki aulad","kutte ki jat","kuttiya",
+  "lodu","lund choos","lund ka bakkal","lund khajoor","lundtopi","lundure",
+  "maa ki chut","maal","madar chod","madhavchod","mooh mein le","mutth",
+  "mutthal","najayaz","najayaz aulaad","najayaz paidaish","pataka","patakha",
+  "raand","randaap","randi rona","saala","saala kutta","saali kutti",
+  "saali randi","suar","suar ke lund","suar ki aulad","tatte","teri maa ka bhosada",
+  "teri maa ka boba chusu","teri maa ki behenchod","teri maa ki chut","tharak","tharki","tu chuda"
+];
+
+function containsBannedWord(text){
+  const lower = text.toLowerCase();
+  return BANNED_WORDS.some(w => {
+    // word-boundary-ish match so we don't over-block substrings inside normal words
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp("(^|[^a-z0-9])" + escaped + "([^a-z0-9]|$)", "i");
+    return re.test(lower);
+  });
+}
+
+/* =======================================================
+   LINK / URL BLOCKER
+   -- No links allowed anywhere in this chat (messages or comments)
+======================================================= */
+function containsLink(text){
+  const linkPattern = /(https?:\/\/|www\.)|\b[a-z0-9-]+\.(com|net|org|info|xyz|io|co|me|link|click|site|online|shop|live|tv|app|gg|ru|cn|pk|in|uk|biz|top|club)\b/i;
+  return linkPattern.test(text);
+}
+
+async function containsApiFlaggedProfanity(text){
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2500); // never let this hang the send flow
+
+  try{
+    const res = await fetch(
+      `https://www.purgomalum.com/service/containsprofanity?text=${encodeURIComponent(text)}`,
+      { signal: controller.signal }
+    );
+    const result = await res.text();
+    return result.trim() === "true";
+  }catch(err){
+    // API down / blocked / timed out -> fail-open here since the fast manual
+    // word-list check already ran before this and is the primary filter.
+    console.warn("Moderation API unreachable or timed out, continuing with manual filter only.", err);
+    return false;
+  }finally{
+    clearTimeout(timeoutId);
+  }
+}
+
+/* =======================================================
+   TOAST
+======================================================= */
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.innerText = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* =======================================================
+   NAME GATE
+   -- A display name is required before a user can send a
+      message or comment. Nothing is verified/stored server
+      side beyond what's attached to their own messages.
+======================================================= */
+function submitName(){
+  const raw = nameInputEl.value.trim();
+
+  if (!raw){
+    showNameError("Please enter a name to continue.");
+    return;
+  }
+  if (raw.length < 2){
+    showNameError("Name should be at least 2 characters.");
+    return;
+  }
+  if (containsBannedWord(raw)){
+    showNameError("That name isn't allowed, please try another.");
+    return;
+  }
+  if (containsLink(raw)){
+    showNameError("Links aren't allowed in names.");
+    return;
+  }
+
+  myName = raw.slice(0, 24);
+  nameModalEl.classList.add('hide');
+  inputEl.disabled = false;
+  sendBtnEl.disabled = false;
+  inputEl.focus();
+}
+
+function showNameError(msg){
+  nameErrorEl.innerText = msg;
+  nameInputEl.classList.add('invalid');
+}
+
+nameInputEl.addEventListener('input', () => {
+  nameInputEl.classList.remove('invalid');
+  nameErrorEl.innerText = '';
+});
+nameInputEl.addEventListener('keypress', e => {
+  if (e.key === 'Enter') submitName();
+});
+
+/* =======================================================
+   AUTO-JOIN (browsing/reading is open to everyone, but a
+   display name is required before sending anything)
+======================================================= */
+nameInputEl.focus();
+joinRoom();
+
+/* =======================================================
+   JOIN ROOM / PRESENCE (unlimited users)
+======================================================= */
+function joinRoom(){
+  const presenceRef = db.ref(`presence/${ROOM}/${myId}`);
+  presenceRef.set({ ts: Date.now() }).catch(err => {
+    console.error("Presence write failed (check Firebase rules):", err);
+  });
+  presenceRef.onDisconnect().remove();
+
+  db.ref(`presence/${ROOM}`).on('value', snap => {
+    const count = snap.exists() ? Object.keys(snap.val()).length : 0;
+    onlineCountEl.innerText = count;
+  }, err => console.error("Presence read failed:", err));
+
+  listenMessages();
+  runCleanupSweep();
+  setInterval(runCleanupSweep, 5 * 60 * 1000); // sweep every 5 min while tab is open
+}
+
+/* =======================================================
+   AUTO-DELETE SWEEP (24h)
+   Best-effort client-side cleanup since Spark plan has no
+   backend scheduler. Any active client helps clean stale data.
+======================================================= */
+function runCleanupSweep(){
+  const cutoff = Date.now() - MSG_LIFETIME_MS;
+  db.ref(`chats/${ROOM}/messages`).orderByChild('timestamp').endAt(cutoff).once('value', snap => {
+    snap.forEach(child => {
+      db.ref(`chats/${ROOM}/messages/${child.key}`).remove();
+    });
+  });
+}
+
+/* =======================================================
+   RENDER MESSAGES (live)
+======================================================= */
+const renderedIds = new Set();
+
+function listenMessages(){
+  const msgsRef = db.ref(`chats/${ROOM}/messages`).orderByChild('timestamp').limitToLast(200);
+
+  msgsRef.on('child_added', snap => {
+    const msg = snap.val();
+    const id = snap.key;
+    if (renderedIds.has(id)) return;
+
+    // skip if already older than 24h (edge case: was added just before expiry)
+    if (Date.now() - msg.timestamp > MSG_LIFETIME_MS) return;
+    // skip if hidden due to reports
+    if (msg.reportCount && msg.reportCount >= REPORT_HIDE_THRESHOLD) return;
+
+    renderedIds.add(id);
+    renderMessage(id, msg);
+  }, err => {
+    console.error("Could not read messages (check Firebase database rules):", err);
+    showToast("⚠️ Can't connect to chat · check Firebase database rules.");
+  });
+
+  msgsRef.on('child_changed', snap => {
+    const msg = snap.val();
+    const id = snap.key;
+    updateMessageUI(id, msg);
+  });
+
+  msgsRef.on('child_removed', snap => {
+    const el = document.getElementById('row-' + snap.key);
+    if (el) el.remove();
+    renderedIds.delete(snap.key);
+  });
+}
+
+function renderMessage(id, msg){
+  const isMine = msg.sender === myId;
+  const row = document.createElement('div');
+  row.className = 'msg-row ' + (isMine ? 'you' : 'other');
+  row.id = 'row-' + id;
+
+  let html = '';
+  html += `<div class="sender-name">${isMine ? 'You' : escapeHtml(msg.senderName || 'Anonymous')}</div>`;
+  if (msg.replyTo) {
+    html += `<div class="reply-ref">↩ ${escapeHtml(msg.replyTo.text)}</div>`;
+  }
+  html += `<div class="bubble">${escapeHtml(msg.text)}</div>`;
+  html += `<div class="msg-meta">${formatTime(msg.timestamp)}</div>`;
+  html += `
+    <div class="msg-actions">
+      <button class="action-btn heart-btn" onclick="reactMsg('${id}','heart')">❤️ <span class="heart-count">${countReactions(msg.hearts)}</span></button>
+      <button class="action-btn like-btn" onclick="reactMsg('${id}','like')">👍 <span class="like-count">${countReactions(msg.likes)}</span></button>
+      <button class="action-btn dislike-btn" onclick="reactMsg('${id}','dislike')">👎 <span class="dislike-count">${countReactions(msg.dislikes)}</span></button>
+      <button class="action-btn" onclick="startReply('${id}', ${jsAttr(msg.text)})">↩ Reply</button>
+      <button class="action-btn" onclick="toggleComments('${id}')">💬 <span class="comment-count">${msg.comments ? Object.keys(msg.comments).length : 0}</span></button>
+      <button class="action-btn report-btn" onclick="openReportModal('${id}')">⚑</button>
+    </div>
+    <div class="comments-box" id="comments-${id}">
+      <div class="comment-list" id="comment-list-${id}"></div>
+      <div class="comment-input-row">
+        <input type="text" id="comment-input-${id}" placeholder="Write a comment..." maxlength="200">
+        <button onclick="submitComment('${id}')">Post</button>
+      </div>
+    </div>
+  `;
+  row.innerHTML = html;
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  applyReactionHighlight(id, msg);
+  if (msg.comments) renderComments(id, msg.comments);
+}
+
+function updateMessageUI(id, msg){
+  const row = document.getElementById('row-' + id);
+  if (!row) return;
+
+  // auto-hide if reports crossed threshold
+  if (msg.reportCount && msg.reportCount >= REPORT_HIDE_THRESHOLD){
+    row.remove();
+    renderedIds.delete(id);
+    return;
+  }
+
+  const likeCountEl = row.querySelector('.like-count');
+  const dislikeCountEl = row.querySelector('.dislike-count');
+  const heartCountEl = row.querySelector('.heart-count');
+  if (likeCountEl) likeCountEl.innerText = countReactions(msg.likes);
+  if (dislikeCountEl) dislikeCountEl.innerText = countReactions(msg.dislikes);
+  if (heartCountEl) heartCountEl.innerText = countReactions(msg.hearts);
+
+  applyReactionHighlight(id, msg);
+
+  if (msg.comments){
+    renderComments(id, msg.comments);
+    const cEl = row.querySelector('.comment-count');
+    if (cEl) cEl.innerText = Object.keys(msg.comments).length;
+  }
+}
+
+function applyReactionHighlight(id, msg){
+  const row = document.getElementById('row-' + id);
+  if (!row) return;
+  const likeBtn = row.querySelector('.like-btn');
+  const dislikeBtn = row.querySelector('.dislike-btn');
+  const heartBtn = row.querySelector('.heart-btn');
+  likeBtn.classList.toggle('active-like', !!(msg.likes && msg.likes[myId]));
+  dislikeBtn.classList.toggle('active-dislike', !!(msg.dislikes && msg.dislikes[myId]));
+  if (heartBtn) heartBtn.classList.toggle('active-heart', !!(msg.hearts && msg.hearts[myId]));
+}
+
+function countReactions(obj){
+  return obj ? Object.keys(obj).length : 0;
+}
+
+function renderComments(msgId, comments){
+  const list = document.getElementById('comment-list-' + msgId);
+  if (!list) return;
+  list.innerHTML = Object.values(comments)
+    .sort((a,b) => a.timestamp - b.timestamp)
+    .map(c => `<div class="comment-item"><span class="c-name">${escapeHtml(c.senderName || 'Anonymous')}</span>${escapeHtml(c.text)}</div>`)
+    .join('');
+}
+
+function toggleComments(msgId){
+  const box = document.getElementById('comments-' + msgId);
+  box.classList.toggle('open');
+}
+
+/* =======================================================
+   REPLY FLOW
+======================================================= */
+function startReply(id, text){
+  replyTarget = { id, text: text.slice(0, 80) };
+  const preview = document.getElementById('reply-preview');
+  document.getElementById('reply-preview-text').innerText = `Replying to: ${replyTarget.text}`;
+  preview.classList.add('show');
+  inputEl.focus();
+}
+function cancelReply(){
+  replyTarget = null;
+  document.getElementById('reply-preview').classList.remove('show');
+}
+
+/* =======================================================
+   REACTIONS (like/dislike, one per user, toggles off)
+======================================================= */
+function reactMsg(id, type){
+  // heart is independent; like/dislike remain mutually exclusive with each other
+  if (type === 'heart'){
+    const heartPath = `chats/${ROOM}/messages/${id}/hearts/${myId}`;
+    db.ref(heartPath).once('value', snap => {
+      if (snap.exists()) db.ref(heartPath).remove();
+      else db.ref(heartPath).set(true);
+    });
+    return;
+  }
+
+  const path = `chats/${ROOM}/messages/${id}/${type === 'like' ? 'likes' : 'dislikes'}/${myId}`;
+  const oppositePath = `chats/${ROOM}/messages/${id}/${type === 'like' ? 'dislikes' : 'likes'}/${myId}`;
+
+  db.ref(path).once('value', snap => {
+    if (snap.exists()){
+      db.ref(path).remove(); // un-react
+    } else {
+      db.ref(path).set(true);
+      db.ref(oppositePath).remove(); // can't like & dislike at once
+    }
+  });
+}
+
+/* =======================================================
+   COMMENTS
+======================================================= */
+function submitComment(msgId){
+  const input = document.getElementById('comment-input-' + msgId);
+  const text = input.value.trim();
+  if (!text) return;
+  if (!myName){
+    nameModalEl.classList.remove('hide');
+    nameInputEl.focus();
+    return;
+  }
+  if (containsBannedWord(text)){
+    showToast("⚠️ Comment blocked · inappropriate language.");
+    return;
+  }
+  if (containsLink(text)){
+    showToast("⚠️ Links are not allowed in comments.");
+    return;
+  }
+  db.ref(`chats/${ROOM}/messages/${msgId}/comments`).push({
+    sender: myId,
+    senderName: myName,
+    text: text.slice(0, 200),
+    timestamp: Date.now()
+  });
+  input.value = "";
+}
+
+/* =======================================================
+   REPORT FLOW
+======================================================= */
+function openReportModal(msgId){
+  reportTargetId = msgId;
+  document.getElementById('report-modal').classList.add('show');
+}
+function closeReportModal(){
+  reportTargetId = null;
+  document.getElementById('report-modal').classList.remove('show');
+}
+function submitReport(reason){
+  if (!reportTargetId) return;
+  const msgRef = db.ref(`chats/${ROOM}/messages/${reportTargetId}`);
+
+  msgRef.child('reportedBy').child(myId).once('value', snap => {
+    if (snap.exists()){
+      showToast("You already reported this message.");
+      closeReportModal();
+      return;
+    }
+    msgRef.child('reportedBy').child(myId).set(reason);
+    msgRef.child('reportCount').transaction(c => (c || 0) + 1);
+
+    db.ref(`reports/${ROOM}`).push({
+      messageId: reportTargetId,
+      reason,
+      reportedBy: myId,
+      timestamp: Date.now()
+    });
+
+    showToast("Reported. Thanks for keeping the room clean.");
+    closeReportModal();
+  });
+}
+
+/* =======================================================
+   SEND MESSAGE (with double filter)
+======================================================= */
+async function handleSend(){
+  const text = inputEl.value.trim();
+  if (!text) return;
+  if (!myName){
+    nameModalEl.classList.remove('hide');
+    nameInputEl.focus();
+    return;
+  }
+
+  const sendBtn = document.getElementById('send-btn');
+  sendBtn.disabled = true;
+  // absolute safety net: whatever happens, never leave the button stuck disabled
+  const safetyUnlock = setTimeout(() => { sendBtn.disabled = false; }, 8000);
+
+  try{
+    // 1) manual word list (instant, local)
+    if (containsBannedWord(text)){
+      showToast("⚠️ Message blocked · inappropriate language.");
+      return;
+    }
+    // 2) links are not allowed in this chat
+    if (containsLink(text)){
+      showToast("⚠️ Links are not allowed in this chat.");
+      return;
+    }
+    // 3) API-based profanity check (has its own 2.5s timeout, fails open)
+    const flagged = await containsApiFlaggedProfanity(text);
+    if (flagged){
+      showToast("⚠️ Message blocked by moderation filter.");
+      return;
+    }
+
+    const payload = {
+      sender: myId,
+      senderName: myName,
+      text: text.slice(0, 500),
+      timestamp: Date.now(),
+      likes: null,
+      dislikes: null,
+      hearts: null,
+      reportCount: 0
+    };
+    if (replyTarget) payload.replyTo = replyTarget;
+
+    await db.ref(`chats/${ROOM}/messages`).push(payload);
+
+    inputEl.value = "";
+    cancelReply();
+  } catch(err){
+    console.error(err);
+    showToast("Something went wrong sending your message.");
+  } finally {
+    clearTimeout(safetyUnlock);
+    sendBtn.disabled = false;
+  }
+}
+
+inputEl.addEventListener('keypress', e => {
+  if (e.key === 'Enter') handleSend();
+});
+
+/* =======================================================
+   HELPERS
+======================================================= */
+function jsAttr(str){
+  // Safely embed a JS string literal inside an HTML double-quoted attribute (used in inline onclick).
+  return JSON.stringify(str == null ? '' : String(str)).replace(/"/g, '&quot;');
+}
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.innerText = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+function formatTime(ts){
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+</script>
