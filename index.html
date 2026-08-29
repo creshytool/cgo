@@ -1,6 +1,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Creshy Hidden Group Chat</title>
+<title>Creshy Group Chat</title>
 <style>
   :root{
     --bg:#f7f7f5;
@@ -124,6 +124,18 @@
     text-overflow:ellipsis;
     white-space:nowrap;
   }
+  .reply-ref-name{
+    color:var(--accent-2);
+    font-weight:700;
+    margin-right:4px;
+  }
+
+  .location-tag{
+    font-size:10px;
+    color:var(--text-dim);
+    font-weight:500;
+    margin-left:4px;
+  }
 
   .bubble{
     padding:9px 13px;
@@ -132,7 +144,21 @@
     line-height:1.4;
     word-break:break-word;
     position:relative;
+    touch-action:pan-y;
+    transition:transform .15s ease;
   }
+
+  .swipe-reply-icon{
+    position:absolute;
+    top:50%;
+    left:-26px;
+    transform:translateY(-50%);
+    font-size:15px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .1s linear;
+  }
+  .you .swipe-reply-icon{ left:auto; right:-26px; }
   .you .bubble{
     background:var(--bubble-you);
     color:#04211c;
@@ -191,6 +217,9 @@
     font-size:12px;
     padding:4px 0;
     border-bottom:1px solid rgba(0,0,0,0.06);
+    position:relative;
+    touch-action:pan-y;
+    transition:transform .15s ease;
   }
   .comment-item:last-child{border-bottom:none;}
   .comment-item .c-name{color:var(--accent-2);font-weight:600;margin-right:4px;}
@@ -206,6 +235,11 @@
     overflow:hidden;
     text-overflow:ellipsis;
     white-space:nowrap;
+  }
+  .comment-reply-ref .reply-ref-name{
+    color:var(--accent-2);
+    font-weight:700;
+    margin-right:4px;
   }
   .comment-actions{
     display:flex;
@@ -474,7 +508,7 @@
 <div id="app">
   <div id="header">
     <div class="title">
-      <strong>🌐 Creshy Hidden Group Chat</strong>
+      <strong>🌐 Creshy Group Chat</strong>
       <span>No names, no hesitation · just talk freely</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
@@ -564,8 +598,11 @@ function wordCount(text){
 
 let myId = "u" + Math.floor(Math.random() * 1000000) + Date.now().toString(36);
 let myName = null;           // no identity is stored/verified · just a display label the user picks
-let replyTarget = null;      // {id, text, sender}
+let replyTarget = null;      // {id, text, senderName}
 let reportTargetId = null;
+let myCountryFlag = "";      // detected once via IP-based lookup, attached to messages/comments
+let myCountryName = "";
+let myCity = "";
 
 const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('msg-input');
@@ -1590,6 +1627,7 @@ nameInputEl.addEventListener('keypress', e => {
 ======================================================= */
 nameInputEl.focus();
 joinRoom();
+detectLocation();
 
 /* =======================================================
    JOIN ROOM / PRESENCE (unlimited users)
@@ -1669,10 +1707,14 @@ function renderMessage(id, msg){
   row.className = 'msg-row ' + (isMine ? 'you' : 'other');
   row.id = 'row-' + id;
 
+  const displayName = isMine ? 'You' : escapeHtml(msg.senderName || 'Anonymous');
+  const locationTag = formatLocationTag(msg.countryFlag, msg.countryName, msg.city);
+
   let html = '';
-  html += `<div class="sender-name">${isMine ? 'You' : escapeHtml(msg.senderName || 'Anonymous')}</div>`;
+  html += `<div class="sender-name">${displayName}${locationTag}</div>`;
   if (msg.replyTo) {
-    html += `<div class="reply-ref">↩ ${escapeHtml(msg.replyTo.text)}</div>`;
+    const replyToName = escapeHtml(msg.replyTo.senderName || 'Anonymous');
+    html += `<div class="reply-ref"><span class="reply-ref-name">${replyToName}</span>↩ ${escapeHtml(msg.replyTo.text)}</div>`;
   }
   html += `<div class="bubble">${escapeHtml(msg.text)}</div>`;
   html += `<div class="msg-meta">${formatTime(msg.timestamp)}</div>`;
@@ -1681,7 +1723,7 @@ function renderMessage(id, msg){
       <button class="action-btn heart-btn" onclick="reactMsg('${id}','heart')">❤️ <span class="heart-count">${countReactions(msg.hearts)}</span></button>
       <button class="action-btn like-btn" onclick="reactMsg('${id}','like')">👍 <span class="like-count">${countReactions(msg.likes)}</span></button>
       <button class="action-btn dislike-btn" onclick="reactMsg('${id}','dislike')">👎 <span class="dislike-count">${countReactions(msg.dislikes)}</span></button>
-      <button class="action-btn" onclick="startReply('${id}', ${jsAttr(msg.text)})">↩ Reply</button>
+      <button class="action-btn" onclick="startReply('${id}', ${jsAttr(msg.text)}, ${jsAttr(isMine ? 'You' : (msg.senderName || 'Anonymous'))})">↩ Reply</button>
       <button class="action-btn" onclick="toggleComments('${id}')">💬 <span class="comment-count">${msg.comments ? Object.keys(msg.comments).length : 0}</span></button>
       <button class="action-btn report-btn" onclick="openReportModal('${id}')">⚑</button>
     </div>
@@ -1703,6 +1745,12 @@ function renderMessage(id, msg){
 
   applyReactionHighlight(id, msg);
   if (msg.comments) renderComments(id, msg.comments);
+
+  // swipe-to-reply (WhatsApp style) on the message bubble
+  const bubbleEl = row.querySelector('.bubble');
+  if (bubbleEl){
+    attachSwipeToReply(bubbleEl, () => startReply(id, msg.text, isMine ? 'You' : (msg.senderName || 'Anonymous')));
+  }
 }
 
 function updateMessageUI(id, msg){
@@ -1755,10 +1803,13 @@ function renderComments(msgId, comments){
     .sort((a,b) => a[1].timestamp - b[1].timestamp)
     .map(([cId, c]) => {
       const isMine = c.sender === myId;
+      const cDisplayName = isMine ? 'You' : (c.senderName || 'Anonymous');
+      const cLocationTag = formatLocationTag(c.countryFlag, c.countryName, c.city);
       let h = `<div class="comment-item" id="crow-${msgId}-${cId}">`;
-      h += `<span class="c-name">${isMine ? 'You' : escapeHtml(c.senderName || 'Anonymous')}</span>`;
+      h += `<span class="c-name">${escapeHtml(cDisplayName)}${cLocationTag}</span>`;
       if (c.replyTo){
-        h += `<div class="comment-reply-ref">↩ ${escapeHtml(c.replyTo.text)}</div>`;
+        const cReplyToName = escapeHtml(c.replyTo.senderName || 'Anonymous');
+        h += `<div class="comment-reply-ref"><span class="reply-ref-name">${cReplyToName}</span>↩ ${escapeHtml(c.replyTo.text)}</div>`;
       }
       h += escapeHtml(c.text);
       h += `
@@ -1766,7 +1817,7 @@ function renderComments(msgId, comments){
           <button class="action-btn heart-btn" onclick="reactComment('${msgId}','${cId}','heart')">❤️ <span class="heart-count">${countReactions(c.hearts)}</span></button>
           <button class="action-btn like-btn" onclick="reactComment('${msgId}','${cId}','like')">👍 <span class="like-count">${countReactions(c.likes)}</span></button>
           <button class="action-btn dislike-btn" onclick="reactComment('${msgId}','${cId}','dislike')">👎 <span class="dislike-count">${countReactions(c.dislikes)}</span></button>
-          <button class="action-btn" onclick="startCommentReply('${msgId}','${cId}', ${jsAttr(c.text)})">↩ Reply</button>
+          <button class="action-btn" onclick="startCommentReply('${msgId}','${cId}', ${jsAttr(c.text)}, ${jsAttr(cDisplayName)})">↩ Reply</button>
           <button class="action-btn report-btn" onclick="openReportModal('${msgId}','${cId}')">⚑</button>
         </div>
       `;
@@ -1776,6 +1827,15 @@ function renderComments(msgId, comments){
     .join('');
 
   Object.entries(comments).forEach(([cId, c]) => applyCommentReactionHighlight(msgId, cId, c));
+
+  // swipe-to-reply on each comment item
+  Object.entries(comments).forEach(([cId, c]) => {
+    const cRow = document.getElementById(`crow-${msgId}-${cId}`);
+    if (!cRow) return;
+    const cIsMine = c.sender === myId;
+    const cDisplayName = cIsMine ? 'You' : (c.senderName || 'Anonymous');
+    attachSwipeToReply(cRow, () => startCommentReply(msgId, cId, c.text, cDisplayName));
+  });
 }
 
 function applyCommentReactionHighlight(msgId, cId, c){
@@ -1817,12 +1877,12 @@ function reactComment(msgId, cId, type){
 /* =======================================================
    COMMENT REPLY FLOW (scoped per message's comment box)
 ======================================================= */
-let commentReplyTargets = {}; // { [msgId]: {id, text} }
+let commentReplyTargets = {}; // { [msgId]: {id, text, senderName} }
 
-function startCommentReply(msgId, cId, text){
-  commentReplyTargets[msgId] = { id: cId, text: text.slice(0, 80) };
+function startCommentReply(msgId, cId, text, senderName){
+  commentReplyTargets[msgId] = { id: cId, text: text.slice(0, 80), senderName: (senderName || 'Anonymous').slice(0, 24) };
   const preview = document.getElementById('comment-reply-preview-' + msgId);
-  document.getElementById('comment-reply-preview-text-' + msgId).innerText = `Replying to: ${commentReplyTargets[msgId].text}`;
+  document.getElementById('comment-reply-preview-text-' + msgId).innerText = `Replying to ${commentReplyTargets[msgId].senderName}: ${commentReplyTargets[msgId].text}`;
   preview.classList.add('show');
   const input = document.getElementById('comment-input-' + msgId);
   if (input) input.focus();
@@ -1841,10 +1901,10 @@ function toggleComments(msgId){
 /* =======================================================
    REPLY FLOW
 ======================================================= */
-function startReply(id, text){
-  replyTarget = { id, text: text.slice(0, 80) };
+function startReply(id, text, senderName){
+  replyTarget = { id, text: text.slice(0, 80), senderName: (senderName || 'Anonymous').slice(0, 24) };
   const preview = document.getElementById('reply-preview');
-  document.getElementById('reply-preview-text').innerText = `Replying to: ${replyTarget.text}`;
+  document.getElementById('reply-preview-text').innerText = `Replying to ${replyTarget.senderName}: ${replyTarget.text}`;
   preview.classList.add('show');
   inputEl.focus();
 }
@@ -1932,7 +1992,10 @@ async function submitComment(msgId){
       sender: myId,
       senderName: myName,
       text: text.slice(0, 200),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      countryFlag: myCountryFlag || null,
+      countryName: myCountryName || null,
+      city: myCity || null
     };
     const replyTo = commentReplyTargets[msgId];
     if (replyTo) payload.replyTo = replyTo;
@@ -2069,7 +2132,10 @@ async function handleSend(){
       likes: null,
       dislikes: null,
       hearts: null,
-      reportCount: 0
+      reportCount: 0,
+      countryFlag: myCountryFlag || null,
+      countryName: myCountryName || null,
+      city: myCity || null
     };
     if (replyTarget) payload.replyTo = replyTarget;
 
@@ -2110,5 +2176,116 @@ function escapeHtml(str){
 function formatTime(ts){
   const d = new Date(ts);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+/* =======================================================
+   AUTO COUNTRY/CITY DETECTION (IP-based, no permission prompt)
+   -- Detected once per visit via a free IP-geolocation lookup.
+      Shows a small flag next to the sender's name in chat.
+      Falls back to the country name in text if a flag can't be
+      built, and silently shows nothing if the lookup fails.
+======================================================= */
+async function detectLocation(){
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+  try{
+    const res = await fetch('https://ipapi.co/json/', { signal: controller.signal });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.country_code){
+      myCountryFlag = countryCodeToFlagEmoji(data.country_code);
+    }
+    myCountryName = data.country_name || "";
+    myCity = data.city || "";
+  }catch(err){
+    console.warn("Location auto-detect unavailable, continuing without it.", err);
+  }finally{
+    clearTimeout(timeoutId);
+  }
+}
+
+function countryCodeToFlagEmoji(code){
+  if (!code || code.length !== 2) return "";
+  const chars = [...code.toUpperCase()].map(c => 127397 + c.charCodeAt(0));
+  return String.fromCodePoint(...chars);
+}
+
+// Builds the little "🇵🇰 Karachi" (or "(Pakistan, Karachi)" fallback) tag shown next to a sender's name
+function formatLocationTag(flag, countryName, city){
+  if (flag && city) return ` <span class="location-tag">${flag} ${escapeHtml(city)}</span>`;
+  if (flag) return ` <span class="location-tag">${flag}</span>`;
+  if (countryName && city) return ` <span class="location-tag">(${escapeHtml(countryName)}, ${escapeHtml(city)})</span>`;
+  if (countryName) return ` <span class="location-tag">(${escapeHtml(countryName)})</span>`;
+  if (city) return ` <span class="location-tag">(${escapeHtml(city)})</span>`;
+  return '';
+}
+
+/* =======================================================
+   SWIPE-TO-REPLY (WhatsApp-style gesture)
+   -- Swipe a message/comment bubble to the right past a small
+      threshold to trigger the same reply flow as tapping
+      "Reply". Purely additive: tapping Reply still works
+      exactly as before.
+======================================================= */
+function attachSwipeToReply(el, onReply){
+  let startX = 0, startY = 0, currentX = 0, dragging = false, decided = false, isHorizontal = false;
+  const THRESHOLD = 60;
+  const MAX_DRAG = 80;
+
+  let icon = el.querySelector('.swipe-reply-icon');
+  if (!icon){
+    icon = document.createElement('span');
+    icon.className = 'swipe-reply-icon';
+    icon.textContent = '↩';
+    el.appendChild(icon);
+  }
+
+  function onStart(x, y){
+    startX = x; startY = y; currentX = 0; dragging = true; decided = false; isHorizontal = false;
+  }
+  function onMove(x, y, evt){
+    if (!dragging) return;
+    const dx = x - startX;
+    const dy = y - startY;
+    if (!decided){
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8){
+        isHorizontal = Math.abs(dx) > Math.abs(dy);
+        decided = true;
+      } else {
+        return;
+      }
+    }
+    if (!isHorizontal) return;
+    if (evt && evt.cancelable) evt.preventDefault();
+    currentX = Math.max(0, Math.min(dx, MAX_DRAG)); // only allow swipe-right, like WhatsApp
+    el.style.transform = `translateX(${currentX}px)`;
+    icon.style.opacity = String(Math.min(1, currentX / THRESHOLD));
+  }
+  function onEnd(){
+    if (!dragging) return;
+    dragging = false;
+    el.style.transform = '';
+    icon.style.opacity = '0';
+    if (isHorizontal && currentX >= THRESHOLD){
+      onReply();
+    }
+    currentX = 0;
+  }
+
+  el.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    onStart(t.clientX, t.clientY);
+  }, { passive: true });
+  el.addEventListener('touchmove', e => {
+    const t = e.touches[0];
+    onMove(t.clientX, t.clientY, e);
+  }, { passive: false });
+  el.addEventListener('touchend', onEnd);
+  el.addEventListener('touchcancel', onEnd);
+
+  // mouse support for desktop testing/use
+  el.addEventListener('mousedown', e => { onStart(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', e => { if (dragging) onMove(e.clientX, e.clientY, e); });
+  window.addEventListener('mouseup', onEnd);
 }
 </script>
