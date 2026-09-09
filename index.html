@@ -618,8 +618,8 @@
     30%{transform:translateY(-3px);opacity:1;}
   }
 
-  /* Karma / streak modal + leaderboard + gif + catchup modals */
-  #karma-modal, #leaderboard-modal, #gif-modal, #catchup-modal, #translate-lang-modal{
+  /* Karma / streak modal + leaderboard modals */
+  #karma-modal, #leaderboard-modal, #gif-modal{
     position:fixed;inset:0;
     background:rgba(0,0,0,0.7);
     display:none;
@@ -627,7 +627,7 @@
     z-index:65;
     padding:20px;
   }
-  #karma-modal.show, #leaderboard-modal.show, #gif-modal.show, #catchup-modal.show, #translate-lang-modal.show{display:flex;}
+  #karma-modal.show, #leaderboard-modal.show, #gif-modal.show{display:flex;}
   .simple-modal-box{
     background:var(--panel);
     border:1px solid #e4e7ea;
@@ -660,49 +660,6 @@
   }
   .leaderboard-item:last-child{border-bottom:none;}
   .leaderboard-rank{font-weight:700;color:var(--accent-2);margin-right:6px;}
-
-  /* Translate language picker */
-  .lang-grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:8px;
-    margin-bottom:10px;
-  }
-  .lang-option{
-    background:#f5f6f7;
-    border:1px solid #d9dde1;
-    color:var(--text);
-    padding:9px 10px;
-    border-radius:9px;
-    cursor:pointer;
-    font-size:13px;
-    text-align:center;
-  }
-  .lang-option:hover{background:var(--accent);color:#04211c;border-color:var(--accent);}
-  .lang-custom-row{
-    display:flex;
-    gap:6px;
-    margin-top:4px;
-  }
-  .lang-custom-row input{
-    flex:1;
-    background:#f5f6f7;
-    border:1px solid #d9dde1;
-    padding:9px 10px;
-    border-radius:9px;
-    font-size:13px;
-    outline:none;
-  }
-  .lang-custom-row button{
-    background:var(--accent);
-    border:none;
-    color:#04211c;
-    font-weight:700;
-    padding:0 14px;
-    border-radius:9px;
-    cursor:pointer;
-    font-size:13px;
-  }
 
   /* @mention autocomplete popup */
   #mention-popup{
@@ -760,36 +717,6 @@
     display:block;
   }
 
-  /* Translate / AI action row on messages */
-  .ai-msg-actions{
-    display:flex;
-    gap:8px;
-    margin-top:2px;
-  }
-  .ai-action-btn{
-    background:none;
-    border:none;
-    color:var(--text-dim);
-    font-size:10.5px;
-    cursor:pointer;
-    padding:1px 4px;
-    opacity:.8;
-  }
-  .ai-action-btn:hover{opacity:1;color:var(--accent);}
-  .translated-text{
-    margin-top:4px;
-    padding:6px 9px;
-    background:rgba(0,209,178,0.08);
-    border-left:2px solid var(--accent);
-    border-radius:6px;
-    font-size:12.5px;
-    color:var(--text-dim);
-  }
-  .sentiment-tag{
-    font-size:10px;
-    margin-left:5px;
-  }
-
   /* Smart reply suggestions strip */
   #smart-replies{
     display:none;
@@ -829,7 +756,6 @@
       <div id="karma-pill" onclick="openKarmaModal()">⭐ <span id="karma-count">0</span></div>
       <button class="icon-btn" onclick="toggleSearchBar()" title="Search">🔍</button>
       <button class="icon-btn" onclick="openLeaderboardModal()" title="Top Messages">🏆</button>
-      <button class="icon-btn" onclick="openCatchupModal()" title="Catch Me Up">📋</button>
       <div id="online-pill"><span id="online-count">0</span></div>
     </div>
   </div>
@@ -920,28 +846,6 @@
   </div>
 </div>
 
-<!-- TRANSLATE LANGUAGE PICKER MODAL -->
-<div id="translate-lang-modal">
-  <div class="simple-modal-box">
-    <h4>🌐 Translate to which language?</h4>
-    <div class="lang-grid">
-      <div class="lang-option" onclick="pickTranslateLanguage('English')">English</div>
-      <div class="lang-option" onclick="pickTranslateLanguage('Urdu')">Urdu</div>
-      <div class="lang-option" onclick="pickTranslateLanguage('Hindi')">Hindi</div>
-      <div class="lang-option" onclick="pickTranslateLanguage('Arabic')">Arabic</div>
-      <div class="lang-option" onclick="pickTranslateLanguage('Spanish')">Spanish</div>
-      <div class="lang-option" onclick="pickTranslateLanguage('French')">French</div>
-      <div class="lang-option" onclick="pickTranslateLanguage('Chinese')">Chinese</div>
-      <div class="lang-option" onclick="pickTranslateLanguage('Russian')">Russian</div>
-    </div>
-    <div class="lang-custom-row">
-      <input type="text" id="lang-custom-input" placeholder="Or type any language..." maxlength="30">
-      <button onclick="pickTranslateLanguage(document.getElementById('lang-custom-input').value.trim())">Go</button>
-    </div>
-    <button class="simple-modal-close" onclick="closeTranslateLangModal()">Cancel</button>
-  </div>
-</div>
-
 <!-- GIF/STICKER MODAL -->
 <div id="gif-modal">
   <div class="simple-modal-box">
@@ -955,15 +859,6 @@
       <!-- ============================================= -->
     </div>
     <button class="simple-modal-close" onclick="closeGifModal()">Close</button>
-  </div>
-</div>
-
-<!-- CATCH ME UP (AI SUMMARY) MODAL -->
-<div id="catchup-modal">
-  <div class="simple-modal-box">
-    <h4>📋 Catch Me Up</h4>
-    <div id="catchup-content" style="font-size:13px;line-height:1.6;color:var(--text);"></div>
-    <button class="simple-modal-close" onclick="closeCatchupModal()">Close</button>
   </div>
 </div>
 
@@ -1027,13 +922,7 @@ const cooldownNoteEl = document.getElementById('cooldown-note');
 
 /* =======================================================
    1) GLOBAL TEXT NORMALIZATION & UNICODE HANDLING
-   -- Used only to DECIDE whether text is allowed. The
-      original, unmodified text is still what gets stored
-      and displayed (via escapeHtml), so legitimate text in
-      any script is never mangled for the user.
 ======================================================= */
-
-// Leetspeak / common bypass substitutions -> plain latin letters
 const LEET_MAP = {
   "0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","8":"b","9":"g",
   "@":"a","$":"s","!":"i","+":"t","€":"e","£":"e",
@@ -1044,53 +933,29 @@ const LEET_MAP = {
 function normalizeForFilter(text){
   if (!text) return "";
   let t = String(text);
-
-  // remove zero-width / invisible characters used to split banned words
   t = t.replace(/[\u200B-\u200F\u202A-\u202E\uFEFF\u2060]/g, "");
-
-  // Unicode normalize (NFKD) then strip combining diacritical marks,
-  // so accented / decorated characters collapse to their base form
   t = t.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
-
   t = t.toLowerCase();
-
-  // collapse leetspeak substitutions to plain letters
   t = t.replace(/[01345789@$!+€£|()\[\]µß]/g, ch => LEET_MAP[ch] !== undefined ? LEET_MAP[ch] : ch);
-
-  // collapse repeated punctuation/spacing bypass tricks like "f.u.c.k" or "f u c k"
   t = t.replace(/[\-_.*]{1,3}/g, "");
-
-  // collapse 3+ repeated characters ("fuuuuck") down to 2 so repetition can't dodge matching
   t = t.replace(/(.)\1{2,}/g, "$1$1");
-
   return t;
 }
 
-// Strip any spaces that sit *between* single letters (e.g. "f u c k" -> "fuck")
 function collapseSpacedOutLetters(text){
   return text.replace(/\b(?:[a-z]\s+){2,}[a-z]\b/g, m => m.replace(/\s+/g, ""));
 }
 
-/* =======================================================
-   XSS / INJECTION SANITIZATION
-======================================================= */
 function sanitizeInput(text){
   if (!text) return "";
   let t = String(text);
-  t = t.replace(/<\/?[a-z][\s\S]*?>/gi, "");      // strip HTML tags
-  t = t.replace(/javascript\s*:/gi, "");            // strip javascript: URIs
-  t = t.replace(/on\w+\s*=/gi, "");                 // strip inline event handlers like onclick=
-  t = t.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ""); // strip control chars
+  t = t.replace(/<\/?[a-z][\s\S]*?>/gi, "");
+  t = t.replace(/javascript\s*:/gi, "");
+  t = t.replace(/on\w+\s*=/gi, "");
+  t = t.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
   return t.trim();
 }
 
-/* =======================================================
-   2) MULTI-LANGUAGE LOCAL BAD-WORDS FILTER
-   NOTE: word lists trimmed for brevity in this message —
-   keep your original full BANNED_WORDS_* arrays here exactly
-   as they were in your working file. Nothing about this
-   section changed in the new features update.
-======================================================= */
 const BANNED_WORDS_EN = ["fuck","fucking","shit","bitch","asshole","bastard","slut","whore","dick","pussy","cock","cunt","nigger","nigga","porn","nude","nudes","xxx","rape"];
 const BANNED_WORDS_ROMAN_HINDI_URDU = ["chutiya","madarchod","behenchod","bhosdike","randi","kutta","harami","gaand","gandu","lund","loda","chodu","chod"];
 const BANNED_WORDS_HINDI_DEVANAGARI = [];
@@ -1113,10 +978,6 @@ const BANNED_WORDS_FINNISH = ["vittu","perkele","paska"];
 const BANNED_WORDS_HUNGARIAN = ["kurva","picsa","fasz"];
 const BANNED_WORDS_OTHER = ["fuck","shit","kurva","piča"];
 
-// IMPORTANT: replace the short arrays above with your FULL original
-// word lists from your existing working file — this trimmed version
-// is only shown here to keep this message a manageable size. The
-// filtering LOGIC below is unchanged and works with your full lists.
 const BANNED_WORDS = [
   ...BANNED_WORDS_EN, ...BANNED_WORDS_ROMAN_HINDI_URDU, ...BANNED_WORDS_HINDI_DEVANAGARI,
   ...BANNED_WORDS_SPANISH, ...BANNED_WORDS_ARABIC, ...BANNED_WORDS_GERMAN, ...BANNED_WORDS_FRENCH,
@@ -1139,25 +1000,17 @@ function containsBannedWord(text){
   });
 }
 
-/* =======================================================
-   LINK / URL BLOCKER
-======================================================= */
 function containsLink(text){
   const linkPattern = /(https?:\/\/|www\.)|\b[a-z0-9-]+\.(com|net|org|info|xyz|io|co|me|link|click|site|online|shop|live|tv|app|gg|ru|cn|pk|in|uk|biz|top|club)\b/i;
   return linkPattern.test(text);
 }
 
-/* =======================================================
-   3) MULTI-LINGUAL AI TOXICITY CHECK (Hugging Face)
-======================================================= */
 async function checkToxicityAI(text){
   if (!HUGGING_FACE_API_KEY || HUGGING_FACE_API_KEY === "YOUR_API_KEY"){
     return { flagged: false, reason: "no-api-key" };
   }
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 4000);
-
   try{
     const res = await fetch(HF_MODEL_URL, {
       method: "POST",
@@ -1168,17 +1021,14 @@ async function checkToxicityAI(text){
       },
       body: JSON.stringify({ inputs: text })
     });
-
     if (res.status === 429){
       console.warn("Hugging Face rate limit hit (429) — falling back to local filter only.");
       return { flagged: false, reason: "rate-limited-fallback" };
     }
-
     if (!res.ok){
       console.warn("Hugging Face API error", res.status, "— falling back to local filter only.");
       return { flagged: false, reason: "api-error-fallback" };
     }
-
     const data = await res.json();
     const scores = Array.isArray(data) ? (Array.isArray(data[0]) ? data[0] : data) : [];
     const toxicScore = scores.reduce((max, item) => {
@@ -1189,7 +1039,6 @@ async function checkToxicityAI(text){
       }
       return max;
     }, 0);
-
     return { flagged: toxicScore >= TOXICITY_THRESHOLD, reason: "ai-checked", score: toxicScore };
   }catch(err){
     console.warn("Toxicity API unreachable or timed out, continuing with manual filter only.", err);
@@ -1199,9 +1048,6 @@ async function checkToxicityAI(text){
   }
 }
 
-/* =======================================================
-   TOAST
-======================================================= */
 let toastTimer;
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -1211,12 +1057,8 @@ function showToast(msg){
   toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-/* =======================================================
-   NAME GATE
-======================================================= */
 function submitName(){
   const raw = sanitizeInput(nameInputEl.value.trim());
-
   if (!raw){
     showNameError("Please enter a name to continue.");
     return;
@@ -1233,7 +1075,6 @@ function submitName(){
     showNameError("Links aren't allowed in names.");
     return;
   }
-
   myName = raw.slice(0, 24);
   try { localStorage.setItem('creshy_display_name', myName); } catch(e){}
   nameModalEl.classList.add('hide');
@@ -1256,10 +1097,6 @@ nameInputEl.addEventListener('keypress', e => {
   if (e.key === 'Enter') submitName();
 });
 
-/* =======================================================
-   AUTO-JOIN (browsing/reading is open to everyone, but a
-   display name is required before sending anything)
-======================================================= */
 const savedName = localStorage.getItem('creshy_display_name');
 if (savedName) {
   myName = savedName;
@@ -1272,11 +1109,8 @@ if (savedName) {
 }
 joinRoom();
 detectLocation();
-setTimeout(initDailyPrompt, 0); // deferred so it runs after the whole script (incl. later const declarations) has finished loading
+setTimeout(initDailyPrompt, 0);
 
-/* =======================================================
-   JOIN ROOM / PRESENCE (unlimited users)
-======================================================= */
 function joinRoom(){
   const presenceRef = db.ref(`presence/${ROOM}/${myId}`);
   presenceRef.set({ ts: Date.now(), country: myCountryName || null, flag: myCountryFlag || null }).catch(err => {
@@ -1293,14 +1127,10 @@ function joinRoom(){
   listenMessages();
   listenKarma();
   listenTyping();
-  listenMood();
   runCleanupSweep();
-  setInterval(runCleanupSweep, 5 * 60 * 1000); // sweep every 5 min while tab is open
+  setInterval(runCleanupSweep, 5 * 60 * 1000);
 }
 
-/* =======================================================
-   AUTO-DELETE SWEEP (1 week)
-======================================================= */
 function runCleanupSweep(){
   const cutoff = Date.now() - MSG_LIFETIME_MS;
   db.ref(`chats/${ROOM}/messages`).orderByChild('timestamp').endAt(cutoff).once('value', snap => {
@@ -1310,9 +1140,6 @@ function runCleanupSweep(){
   });
 }
 
-/* =======================================================
-   RENDER MESSAGES (live)
-======================================================= */
 const renderedIds = new Set();
 
 function listenMessages(){
@@ -1322,10 +1149,8 @@ function listenMessages(){
     const msg = snap.val();
     const id = snap.key;
     if (renderedIds.has(id)) return;
-
     if (Date.now() - msg.timestamp > MSG_LIFETIME_MS) return;
     if (msg.reportCount && msg.reportCount >= REPORT_HIDE_THRESHOLD) return;
-
     renderedIds.add(id);
     renderMessage(id, msg);
     if (msg.sender !== myId && msg.text) generateSmartReplies(msg.text);
@@ -1369,12 +1194,6 @@ function renderMessage(id, msg){
     html += `<div class="bubble">${highlightMentions(escapeHtml(msg.text))}</div>`;
   }
   html += `<div class="msg-meta">${formatTime(msg.timestamp)}</div>`;
-  if (!msg.gifUrl && msg.text) {
-    html += `<div class="ai-msg-actions">
-      <button class="ai-action-btn" onclick="openTranslateLangModal('${id}')">🌐 Translate</button>
-    </div>
-    <div class="translated-text" id="translated-${id}" style="display:none;"></div>`;
-  }
   html += `
     <div class="msg-actions">
       <button class="action-btn heart-btn" onclick="reactMsg('${id}','heart')">❤️ <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'hearts')">${countReactions(msg.hearts)}</span></button>
@@ -1412,22 +1231,18 @@ function renderMessage(id, msg){
 function updateMessageUI(id, msg){
   const row = document.getElementById('row-' + id);
   if (!row) return;
-
   if (msg.reportCount && msg.reportCount >= REPORT_HIDE_THRESHOLD){
     row.remove();
     renderedIds.delete(id);
     return;
   }
-
   const likeCountEl = row.querySelector('.like-count');
   const dislikeCountEl = row.querySelector('.dislike-count');
   const heartCountEl = row.querySelector('.heart-count');
   if (likeCountEl) likeCountEl.innerText = countReactions(msg.likes);
   if (dislikeCountEl) dislikeCountEl.innerText = countReactions(msg.dislikes);
   if (heartCountEl) heartCountEl.innerText = countReactions(msg.hearts);
-
   applyReactionHighlight(id, msg);
-
   if (msg.comments){
     renderComments(id, msg.comments);
     const cEl = row.querySelector('.comment-count');
@@ -1503,9 +1318,6 @@ function applyCommentReactionHighlight(msgId, cId, c){
   if (heartBtn) heartBtn.classList.toggle('active-heart', !!(c.hearts && c.hearts[myId]));
 }
 
-/* =======================================================
-   COMMENT REACTIONS (heart/like/dislike, now stores name)
-======================================================= */
 function reactComment(msgId, cId, type){
   const base = `chats/${ROOM}/messages/${msgId}/comments/${cId}`;
   const reactorName = myName || 'Anonymous';
@@ -1529,9 +1341,6 @@ function reactComment(msgId, cId, type){
   });
 }
 
-/* =======================================================
-   COMMENT REPLY FLOW (scoped per message's comment box)
-======================================================= */
 let commentReplyTargets = {};
 
 function startCommentReply(msgId, cId, text, senderName){
@@ -1553,9 +1362,6 @@ function toggleComments(msgId){
   box.classList.toggle('open');
 }
 
-/* =======================================================
-   REPLY FLOW
-======================================================= */
 function startReply(id, text, senderName){
   replyTarget = { id, text: text.slice(0, 80), senderName: (senderName || 'Anonymous').slice(0, 24) };
   const preview = document.getElementById('reply-preview');
@@ -1568,9 +1374,6 @@ function cancelReply(){
   document.getElementById('reply-preview').classList.remove('show');
 }
 
-/* =======================================================
-   REACTIONS (like/dislike, now stores the reactor's name)
-======================================================= */
 function reactMsg(id, type){
   const reactorName = myName || 'Anonymous';
   if (type === 'heart'){
@@ -1581,10 +1384,8 @@ function reactMsg(id, type){
     });
     return;
   }
-
   const path = `chats/${ROOM}/messages/${id}/${type === 'like' ? 'likes' : 'dislikes'}/${myId}`;
   const oppositePath = `chats/${ROOM}/messages/${id}/${type === 'like' ? 'dislikes' : 'likes'}/${myId}`;
-
   db.ref(path).once('value', snap => {
     if (snap.exists()){
       db.ref(path).remove();
@@ -1595,9 +1396,6 @@ function reactMsg(id, type){
   });
 }
 
-/* =======================================================
-   SHOW WHO REACTED (names popup via toast)
-======================================================= */
 function showReactorNames(msgId, commentId, field){
   const path = commentId
     ? `chats/${ROOM}/messages/${msgId}/comments/${commentId}/${field}`
@@ -1617,9 +1415,6 @@ function showReactorNames(msgId, commentId, field){
   });
 }
 
-/* =======================================================
-   KARMA / STREAK SYSTEM
-======================================================= */
 let myKarma = 0;
 const karmaCountEl = document.getElementById('karma-count');
 
@@ -1685,9 +1480,6 @@ function getStreakText(){
   return `🔥 ${streak}-day streak — keep it going!`;
 }
 
-/* =======================================================
-   TYPING INDICATOR
-======================================================= */
 let typingTimeout = null;
 const TYPING_IDLE_MS = 2500;
 
@@ -1696,7 +1488,6 @@ function broadcastTyping(){
   const typingRef = db.ref(`typing/${ROOM}/${myId}`);
   typingRef.set(myName);
   typingRef.onDisconnect().remove();
-
   clearTimeout(typingTimeout);
   typingTimeout = setTimeout(() => {
     typingRef.remove();
@@ -1714,7 +1505,6 @@ function listenTyping(){
     const names = Object.entries(snap.val())
       .filter(([uid]) => uid !== myId)
       .map(([, name]) => name);
-
     if (names.length === 0){
       el.classList.remove('show');
       return;
@@ -1728,9 +1518,6 @@ function listenTyping(){
   });
 }
 
-/* =======================================================
-   SEARCH BAR
-======================================================= */
 function toggleSearchBar(){
   const bar = document.getElementById('search-bar');
   bar.classList.toggle('show');
@@ -1745,12 +1532,10 @@ function toggleSearchBar(){
 function handleSearch(){
   const term = document.getElementById('search-input').value.trim().toLowerCase();
   const rows = messagesEl.querySelectorAll('.msg-row');
-
   if (!term){
     clearSearchHighlights();
     return;
   }
-
   rows.forEach(row => {
     const bubble = row.querySelector('.bubble');
     if (!bubble) return;
@@ -1769,9 +1554,6 @@ function clearSearchHighlights(){
   });
 }
 
-/* =======================================================
-   ONLINE BY COUNTRY WIDGET
-======================================================= */
 function renderOnlineCountries(snap){
   const el = document.getElementById('online-countries');
   if (!snap.exists()){
@@ -1784,27 +1566,21 @@ function renderOnlineCountries(snap){
     const key = p.flag ? `${p.flag} ${p.country || ''}`.trim() : (p.country || null);
     if (key) counts[key] = (counts[key] || 0) + 1;
   });
-
   const countryKeys = Object.keys(counts);
   if (countryKeys.length === 0){
     el.classList.remove('show');
     return;
   }
-
   const totalOnline = snap.exists() ? Object.keys(snap.val()).length : 0;
   const topCountries = countryKeys
     .sort((a, b) => counts[b] - counts[a])
     .slice(0, 4)
     .map(k => `${k} (${counts[k]})`)
     .join(' · ');
-
   el.innerText = `🌍 ${totalOnline} online from ${countryKeys.length} countries · ${topCountries}`;
   el.classList.add('show');
 }
 
-/* =======================================================
-   DAILY PROMPT / ICEBREAKER
-======================================================= */
 const DAILY_PROMPTS = [
   "How's your mood today? Describe it in one emoji 👇",
   "What's the best thing that happened to you today?",
@@ -1834,10 +1610,8 @@ function initDailyPrompt(){
   const todayStr = new Date().toDateString();
   const dismissedFor = localStorage.getItem('creshy_prompt_dismissed');
   if (dismissedFor === todayStr) return;
-
   const promptIndex = getDayOfYear() % DAILY_PROMPTS.length;
   const promptText = DAILY_PROMPTS[promptIndex];
-
   document.getElementById('daily-prompt-text').innerText = promptText;
   document.getElementById('daily-prompt').classList.add('show');
 }
@@ -1848,9 +1622,6 @@ function closeDailyPrompt(){
   document.getElementById('daily-prompt').classList.remove('show');
 }
 
-/* =======================================================
-   @MENTIONS
-======================================================= */
 const knownSenderNames = new Set();
 
 function handleMentionTrigger(){
@@ -1858,22 +1629,17 @@ function handleMentionTrigger(){
   const cursorPos = inputEl.selectionStart;
   const textBeforeCursor = val.slice(0, cursorPos);
   const atMatch = textBeforeCursor.match(/@([a-zA-Z0-9_]{0,24})$/);
-
   const popup = document.getElementById('mention-popup');
-
   if (!atMatch){
     popup.classList.remove('show');
     return;
   }
-
   const partial = atMatch[1].toLowerCase();
   const matches = [...knownSenderNames].filter(n => n.toLowerCase().startsWith(partial) && n !== myName).slice(0, 6);
-
   if (matches.length === 0){
     popup.classList.remove('show');
     return;
   }
-
   popup.innerHTML = matches.map(n =>
     `<div class="mention-item" onclick="insertMention(${jsAttr(n)})">@${escapeHtml(n)}</div>`
   ).join('');
@@ -1901,9 +1667,6 @@ function highlightMentions(escapedText){
   return escapedText.replace(/@([a-zA-Z0-9_]{2,24})/g, '<span class="mention-tag">@$1</span>');
 }
 
-/* =======================================================
-   GIF / STICKER PICKER
-======================================================= */
 function openGifModal(){
   if (!myName){
     nameModalEl.classList.remove('hide');
@@ -1918,13 +1681,11 @@ function closeGifModal(){
 
 async function sendGif(url){
   if (!myName) return;
-
   const now = Date.now();
   if (now - lastSendAt < SEND_COOLDOWN_MS){
     showToast("⏳ Please slow down a little.");
     return;
   }
-
   try{
     const payload = {
       sender: myId,
@@ -1941,7 +1702,6 @@ async function sendGif(url){
       city: myCity || null
     };
     if (replyTarget) payload.replyTo = replyTarget;
-
     await db.ref(`chats/${ROOM}/messages`).push(payload);
     lastSendAt = Date.now();
     cancelReply();
@@ -1953,46 +1713,28 @@ async function sendGif(url){
 }
 
 /* =======================================================
-   GROQ AI HELPER (shared by translate, sentiment, smart
-   replies, catch-up, username, and @bot)
+   GROQ AI HELPER (shared by smart replies, username, @bot)
 ======================================================= */
-/* =======================================================
-   GROQ AI HELPER — calls the SAME /groq-api.php backend
-   used by your AI Teacher tool. Real Groq API key stays
-   only in that backend file, never exposed in this page.
-   Request shape: { prompt, instruction, max_tokens }
-   Response shape: { result: "..." }
-======================================================= */
-
-// Hardcoded instructions per mode — sent as the "instruction"
-// field, same way your AI Teacher tool sends its teacher prompt.
 const GROQ_INSTRUCTIONS = {
-  translate:   (extra) => `You are a translator. Translate the user's message into ${extra || 'English'}. Reply with ONLY the translation, nothing else, no quotes, no explanation.`,
-  sentiment:   () => "You are a sentiment classifier. Read the message and reply with ONLY one word: Positive, Negative, Neutral, or Heated. No punctuation, no explanation.",
   smart_reply: () => "You generate 3 short, casual quick-reply suggestions (each under 6 words) that someone could send in response to the given message. Reply with ONLY the 3 suggestions separated by | and nothing else. Example: Haha true|Same here|What happened?",
-  catchup:     () => "You will be given a list of recent group chat messages. Summarize what has been discussed in 3-4 short bullet points, in a casual tone. Reply in plain text only, no markdown asterisks.",
   username:    () => "Generate one short, fun, anonymous-style display name (like 'MysteriousPenguin42' or 'QuietRiver7'). Reply with ONLY the name, nothing else.",
   bot:         () => "You are a friendly, helpful assistant inside a group chat called Creshy. Keep answers short (2-3 sentences max), casual, and helpful. Never generate harmful, sexual, or hateful content."
 };
 
 const GROQ_MAX_TOKENS = {
-  translate: 120, sentiment: 20, smart_reply: 120,
-  catchup: 350, username: 20, bot: 150
+  smart_reply: 120, username: 20, bot: 150
 };
 
 async function callGroqChat(mode, text, extra){
   const instructionBuilder = GROQ_INSTRUCTIONS[mode];
   if (!instructionBuilder) return { success: false, error: 'Invalid AI mode.' };
-
   const instruction = instructionBuilder(extra);
-  const userContent = (mode === 'catchup') ? (extra || '') : (text || '');
+  const userContent = text || '';
   if (!userContent) return { success: false, error: 'Nothing to send.' };
-
   try{
     const controller = new AbortController();
-    const timeoutMs = (mode === 'catchup') ? 25000 : 15000; // catchup generates more tokens, needs more time
+    const timeoutMs = 15000;
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
     const response = await fetch('/groq-api.php', {
       method: 'POST',
       signal: controller.signal,
@@ -2004,27 +1746,21 @@ async function callGroqChat(mode, text, extra){
       })
     });
     clearTimeout(timeoutId);
-
     let data;
     try {
       data = await response.json();
     } catch (parseErr) {
-      // Server returned something that wasn't valid JSON (e.g. a PHP
-      // fatal error printed as raw HTML). Surface that clearly.
       console.warn(`Groq (${mode}) returned non-JSON response, status ${response.status}`);
       return { success: false, error: `Server error (status ${response.status}) — response wasn't valid JSON. Check your groq-api.php for PHP errors.` };
     }
-
     if (!response.ok || data.error) {
       const errMsg = data.error || `Server returned status ${response.status}`;
       console.warn(`Groq (${mode}) server error:`, errMsg);
       return { success: false, error: errMsg };
     }
-
     if (!data.result) {
       return { success: false, error: 'Server responded but sent no result.' };
     }
-
     return { success: true, result: String(data.result).trim() };
   }catch(err){
     const isTimeout = err.name === 'AbortError';
@@ -2034,85 +1770,6 @@ async function callGroqChat(mode, text, extra){
   }
 }
 
-/* =======================================================
-   AUTO-TRANSLATE
-======================================================= */
-/* =======================================================
-   TRANSLATE LANGUAGE PICKER
-======================================================= */
-let translatePendingId = null;
-
-function openTranslateLangModal(id){
-  // if a translation is already showing for this message, just toggle it off instead of asking again
-  const box = document.getElementById('translated-' + id);
-  if (box && box.style.display === 'block'){
-    box.style.display = 'none';
-    return;
-  }
-  translatePendingId = id;
-  document.getElementById('lang-custom-input').value = '';
-  document.getElementById('translate-lang-modal').classList.add('show');
-}
-
-function closeTranslateLangModal(){
-  translatePendingId = null;
-  document.getElementById('translate-lang-modal').classList.remove('show');
-}
-
-function pickTranslateLanguage(lang){
-  if (!lang || !translatePendingId) return;
-  const id = translatePendingId;
-  closeTranslateLangModal();
-  translateMessage(id, lang);
-}
-
-async function translateMessage(id, targetLanguage){
-  const box = document.getElementById('translated-' + id);
-  if (!box) return;
-
-  box.style.display = 'block';
-  box.innerText = `Translating to ${targetLanguage}...`;
-
-  const row = document.getElementById('row-' + id);
-  const bubbleText = row ? row.querySelector('.bubble').innerText : '';
-  if (!bubbleText){ box.innerText = 'Nothing to translate.'; return; }
-
-  const response = await callGroqChat('translate', bubbleText, targetLanguage);
-  box.innerText = response.success ? response.result : `⚠️ ${response.error}`;
-}
-
-/* =======================================================
-   ROOM MOOD TRACKER
-======================================================= */
-let moodSampleCounter = 0;
-async function checkAndUpdateMood(text){
-  moodSampleCounter++;
-  if (moodSampleCounter % 3 !== 0) return;
-
-  const response = await callGroqChat('sentiment', text);
-  if (!response.success) return; // fails silently — mood tracker is a nice-to-have, not critical
-
-  db.ref(`mood/${ROOM}`).set({ sentiment: response.result.trim(), ts: Date.now() });
-}
-
-function listenMood(){
-  db.ref(`mood/${ROOM}`).on('value', snap => {
-    if (!snap.exists()) return;
-    const { sentiment, ts } = snap.val();
-    if (Date.now() - ts > 30 * 60 * 1000) return;
-
-    const map = { Positive: '😊', Negative: '😕', Neutral: '😐', Heated: '🔥' };
-    const emoji = map[sentiment] || '';
-    const el = document.getElementById('online-countries');
-    if (emoji && el && el.classList.contains('show') && !el.innerText.includes('Room mood')){
-      el.innerText += `  ·  Room mood: ${emoji} ${sentiment}`;
-    }
-  });
-}
-
-/* =======================================================
-   SMART REPLY SUGGESTIONS
-======================================================= */
 let smartReplyDebounce = null;
 function generateSmartReplies(latestText){
   clearTimeout(smartReplyDebounce);
@@ -2120,10 +1777,8 @@ function generateSmartReplies(latestText){
     const response = await callGroqChat('smart_reply', latestText);
     const box = document.getElementById('smart-replies');
     if (!response.success){ box.classList.remove('show'); return; }
-
     const suggestions = response.result.split('|').map(s => s.trim()).filter(Boolean).slice(0, 3);
     if (suggestions.length === 0){ box.classList.remove('show'); return; }
-
     box.innerHTML = suggestions.map(s =>
       `<div class="smart-reply-chip" onclick="useSmartReply(${jsAttr(s)})">${escapeHtml(s)}</div>`
     ).join('');
@@ -2137,17 +1792,12 @@ function useSmartReply(text){
   inputEl.focus();
 }
 
-/* =======================================================
-   TOP MESSAGE LEADERBOARD (today's most-hearted/liked)
-======================================================= */
 function openLeaderboardModal(){
   const listEl = document.getElementById('leaderboard-list');
   listEl.innerHTML = '<p style="font-size:12px;color:var(--text-dim);">Loading...</p>';
   document.getElementById('leaderboard-modal').classList.add('show');
-
   const todayStart = new Date();
   todayStart.setHours(0,0,0,0);
-
   db.ref(`chats/${ROOM}/messages`).orderByChild('timestamp').startAt(todayStart.getTime()).once('value', snap => {
     const items = [];
     snap.forEach(child => {
@@ -2156,15 +1806,12 @@ function openLeaderboardModal(){
       const score = countReactions(m.hearts) + countReactions(m.likes);
       if (score > 0 && m.text) items.push({ text: m.text, name: m.senderName || 'Anonymous', score });
     });
-
     items.sort((a,b) => b.score - a.score);
     const top = items.slice(0, 5);
-
     if (top.length === 0){
       listEl.innerHTML = '<p style="font-size:12px;color:var(--text-dim);">No top messages yet today.</p>';
       return;
     }
-
     listEl.innerHTML = top.map((item, i) => `
       <div class="leaderboard-item">
         <span><span class="leaderboard-rank">#${i+1}</span>${escapeHtml(item.text.slice(0,50))}${item.text.length > 50 ? '…' : ''}</span>
@@ -2177,47 +1824,13 @@ function closeLeaderboardModal(){
   document.getElementById('leaderboard-modal').classList.remove('show');
 }
 
-/* =======================================================
-   CATCH ME UP (AI SUMMARY OF RECENT MESSAGES)
-======================================================= */
-function openCatchupModal(){
-  const contentEl = document.getElementById('catchup-content');
-  contentEl.innerText = 'Summarizing recent messages...';
-  document.getElementById('catchup-modal').classList.add('show');
-
-  db.ref(`chats/${ROOM}/messages`).orderByChild('timestamp').limitToLast(30).once('value', async snap => {
-    const lines = [];
-    snap.forEach(child => {
-      const m = child.val();
-      if (m.text) lines.push(`${m.senderName || 'Anonymous'}: ${m.text}`);
-    });
-
-    if (lines.length === 0){
-      contentEl.innerText = 'Not enough messages yet to summarize.';
-      return;
-    }
-
-    const chatDump = lines.join('\n').slice(0, 2500);
-    const response = await callGroqChat('catchup', '', chatDump);
-    contentEl.innerText = response.success ? response.result : `⚠️ ${response.error}`;
-  });
-}
-function closeCatchupModal(){
-  document.getElementById('catchup-modal').classList.remove('show');
-}
-
-/* =======================================================
-   USERNAME GENERATOR
-======================================================= */
 async function suggestUsername(){
   const btn = document.getElementById('name-suggest');
   btn.disabled = true;
   btn.innerText = 'Thinking...';
-
   const response = await callGroqChat('username', 'generate a name');
   btn.disabled = false;
   btn.innerText = '🎲 Suggest a name for me';
-
   if (response.success){
     nameInputEl.value = response.result.replace(/["'.]/g, '').slice(0, 24);
     nameInputEl.classList.remove('invalid');
@@ -2227,15 +1840,10 @@ async function suggestUsername(){
   }
 }
 
-/* =======================================================
-   @BOT AI COMPANION
-======================================================= */
 async function handleBotMention(text){
   const question = text.replace(/(^|\s)@bot\b/i, '').trim();
   if (!question) return;
-
   const response = await callGroqChat('bot', question);
-
   db.ref(`chats/${ROOM}/messages`).push({
     sender: 'bot_creshy',
     senderName: '🤖 Creshy Bot',
@@ -2248,9 +1856,6 @@ async function handleBotMention(text){
   });
 }
 
-/* =======================================================
-   REPORT FLOW
-======================================================= */
 function openReportModal(msgId, commentId){
   reportTargetId = { msgId, commentId: commentId || null };
   document.getElementById('report-modal').classList.add('show');
@@ -2265,7 +1870,6 @@ function submitReport(reason){
   const targetRef = commentId
     ? db.ref(`chats/${ROOM}/messages/${msgId}/comments/${commentId}`)
     : db.ref(`chats/${ROOM}/messages/${msgId}`);
-
   targetRef.child('reportedBy').child(myId).once('value', snap => {
     if (snap.exists()){
       showToast(commentId ? "You already reported this comment." : "You already reported this message.");
@@ -2274,7 +1878,6 @@ function submitReport(reason){
     }
     targetRef.child('reportedBy').child(myId).set(reason);
     targetRef.child('reportCount').transaction(c => (c || 0) + 1);
-
     db.ref(`reports/${ROOM}`).push({
       messageId: msgId,
       commentId: commentId || null,
@@ -2282,15 +1885,11 @@ function submitReport(reason){
       reportedBy: myId,
       timestamp: Date.now()
     });
-
     showToast("Reported. Thanks for keeping the room clean.");
     closeReportModal();
   });
 }
 
-/* =======================================================
-   COMMENTS
-======================================================= */
 async function submitComment(msgId){
   const input = document.getElementById('comment-input-' + msgId);
   const rawText = input.value.trim();
@@ -2300,17 +1899,14 @@ async function submitComment(msgId){
     nameInputEl.focus();
     return;
   }
-
   const now = Date.now();
   const lastAt = lastCommentAt[msgId] || 0;
   if (now - lastAt < SEND_COOLDOWN_MS){
     showToast(`⏳ Please wait a moment before commenting again.`);
     return;
   }
-
   const text = sanitizeInput(rawText);
   if (!text) return;
-
   if (wordCount(text) > MAX_COMMENT_WORDS){
     showToast(`⚠️ Keep comments under ${MAX_COMMENT_WORDS} words.`);
     return;
@@ -2323,17 +1919,14 @@ async function submitComment(msgId){
     showToast("⚠️ Links are not allowed in comments.");
     return;
   }
-
   const postBtn = document.querySelector(`#comments-${msgId} .comment-input-row button`);
   if (postBtn) postBtn.disabled = true;
-
   try{
     const aiResult = await checkToxicityAI(text);
     if (aiResult.flagged){
       showToast("⚠️ Comment blocked by moderation filter.");
       return;
     }
-
     const payload = {
       sender: myId,
       senderName: myName,
@@ -2345,7 +1938,6 @@ async function submitComment(msgId){
     };
     const replyTo = commentReplyTargets[msgId];
     if (replyTo) payload.replyTo = replyTo;
-
     db.ref(`chats/${ROOM}/messages/${msgId}/comments`).push(payload);
     lastCommentAt[msgId] = Date.now();
     input.value = "";
@@ -2355,9 +1947,6 @@ async function submitComment(msgId){
   }
 }
 
-/* =======================================================
-   4) CLIENT-SIDE SPAM / RATE LIMIT + LIVE COOLDOWN COUNTDOWN
-======================================================= */
 let cooldownTimer = null;
 function startCooldownUI(){
   clearInterval(cooldownTimer);
@@ -2376,9 +1965,6 @@ function startCooldownUI(){
   cooldownTimer = setInterval(tick, 100);
 }
 
-/* =======================================================
-   5) SEND MESSAGE — multi-tiered moderation pipeline
-======================================================= */
 async function handleSend(){
   const rawText = inputEl.value.trim();
   if (!rawText) return;
@@ -2387,22 +1973,18 @@ async function handleSend(){
     nameInputEl.focus();
     return;
   }
-
   const now = Date.now();
   if (now - lastSendAt < SEND_COOLDOWN_MS){
     showToast("⏳ Please slow down a little.");
     startCooldownUI();
     return;
   }
-
   const sendBtn = sendBtnEl;
   sendBtn.disabled = true;
   const safetyUnlock = setTimeout(() => { sendBtn.disabled = false; }, 8000);
-
   try{
     const text = sanitizeInput(rawText);
     if (!text) return;
-
     if (wordCount(text) > MAX_MESSAGE_WORDS){
       showToast(`⚠️ Keep messages under ${MAX_MESSAGE_WORDS} words.`);
       return;
@@ -2420,7 +2002,6 @@ async function handleSend(){
       showToast("⚠️ Message blocked by moderation filter.");
       return;
     }
-
     const payload = {
       sender: myId,
       senderName: myName,
@@ -2435,11 +2016,8 @@ async function handleSend(){
       city: myCity || null
     };
     if (replyTarget) payload.replyTo = replyTarget;
-
     await db.ref(`chats/${ROOM}/messages`).push(payload);
-    checkAndUpdateMood(text);
     if (/(^|\s)@bot\b/i.test(text)) handleBotMention(text);
-
     lastSendAt = Date.now();
     inputEl.value = "";
     cancelReply();
@@ -2463,9 +2041,6 @@ inputEl.addEventListener('input', () => {
   handleMentionTrigger();
 });
 
-/* =======================================================
-   HELPERS
-======================================================= */
 function jsAttr(str){
   return JSON.stringify(str == null ? '' : String(str)).replace(/"/g, '&quot;');
 }
@@ -2479,9 +2054,6 @@ function formatTime(ts){
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-/* =======================================================
-   AUTO COUNTRY/CITY DETECTION (IP-based, no permission prompt)
-======================================================= */
 async function detectLocation(){
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 4000);
@@ -2517,9 +2089,6 @@ function formatLocationTag(flag, countryName, city){
   return '';
 }
 
-/* =======================================================
-   SWIPE-TO-REPLY (WhatsApp-style gesture)
-======================================================= */
 function attachSwipeToReply(el, onReply){
   let startX = 0, startY = 0, currentX = 0, dragging = false, decided = false, isHorizontal = false;
   const THRESHOLD = 60;
