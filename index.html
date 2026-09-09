@@ -684,8 +684,17 @@
   }
   .mention-item:hover{background:#f2f3f5;}
   .mention-tag{
-    color:var(--accent);
     font-weight:700;
+    padding:1px 5px;
+    border-radius:6px;
+  }
+  .other .mention-tag{
+    color:var(--accent);
+    background:rgba(0,209,178,0.12);
+  }
+  .you .mention-tag{
+    color:#04211c;
+    background:rgba(4,33,28,0.14);
   }
 
   /* GIF/sticker picker */
@@ -1732,21 +1741,21 @@ function renderOnlineCountries(snap){
    DAILY PROMPT / ICEBREAKER
 ======================================================= */
 const DAILY_PROMPTS = [
-  "Aaj ka mood kaisa hai? Ek emoji me batao 👇",
-  "Sabse achi cheez jo aaj hui aapke sath?",
-  "Agar aap ek din ke liye invisible ho jain, kya karain ge?",
-  "Ek raaz jo abhi tak kisi ko nahi bataya?",
-  "Aapki pasandeeda movie/drama konsi hai aur kyun?",
-  "Agar lottery lag jaye, sabse pehle kya karo ge?",
-  "Aaj kuch naya seekha? Share karo!",
-  "Ek cheez jo har koi karta hai lekin admit nahi karta?",
-  "Weekend plans kya hain?",
-  "Agar duniya me sirf ek jagah ghoom sakte, konsi hoti?",
-  "Aap ki favorite food konsi hai?",
-  "Sabse ajeeb sapna jo dekha ho?",
-  "Ek advice jo apki life change kar gayi?",
-  "Agar superpower mil jaye, kya chunain ge?",
-  "Aaj kis cheez ke liye shukar guzar hain?"
+  "How's your mood today? Describe it in one emoji 👇",
+  "What's the best thing that happened to you today?",
+  "If you could be invisible for a day, what would you do?",
+  "A secret you've never told anyone?",
+  "What's your favorite movie/show and why?",
+  "If you won the lottery, what's the first thing you'd do?",
+  "Learned something new today? Share it!",
+  "Something everyone does but never admits to?",
+  "What are your weekend plans?",
+  "If you could visit only one place in the world, where would it be?",
+  "What's your favorite food?",
+  "What's the weirdest dream you've ever had?",
+  "What's one piece of advice that changed your life?",
+  "If you had a superpower, which one would you pick?",
+  "What are you grateful for today?"
 ];
 
 function getDayOfYear(){
@@ -1916,7 +1925,8 @@ async function callGroqChat(mode, text, extra){
 
   try{
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutMs = (mode === 'catchup') ? 25000 : 15000; // catchup generates more tokens, needs more time
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     const response = await fetch('/groq-api.php', {
       method: 'POST',
@@ -1931,7 +1941,12 @@ async function callGroqChat(mode, text, extra){
     clearTimeout(timeoutId);
 
     const data = await response.json();
-    if (!response.ok || data.error) throw new Error(data.error || 'AI request failed.');
+    if (!response.ok || data.error) {
+      // Log the REAL server error to console so it's easy to diagnose
+      // instead of only seeing a generic "couldn't do X" message.
+      console.warn(`Groq (${mode}) server error:`, data.error || response.status);
+      throw new Error(data.error || ('Server returned status ' + response.status));
+    }
     return data.result ? String(data.result).trim() : null;
   }catch(err){
     console.warn('Groq AI call failed:', err);
