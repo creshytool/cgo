@@ -1917,11 +1917,11 @@ const GROQ_MAX_TOKENS = {
 
 async function callGroqChat(mode, text, extra){
   const instructionBuilder = GROQ_INSTRUCTIONS[mode];
-  if (!instructionBuilder) return null;
+  if (!instructionBuilder) return { success: false, error: 'Invalid AI mode.' };
 
   const instruction = instructionBuilder(extra);
   const userContent = (mode === 'catchup') ? (extra || '') : (text || '');
-  if (!userContent) return null;
+  if (!userContent) return { success: false, error: 'Nothing to send.' };
 
   try{
     const controller = new AbortController();
@@ -1940,17 +1940,32 @@ async function callGroqChat(mode, text, extra){
     });
     clearTimeout(timeoutId);
 
-    const data = await response.json();
-    if (!response.ok || data.error) {
-      // Log the REAL server error to console so it's easy to diagnose
-      // instead of only seeing a generic "couldn't do X" message.
-      console.warn(`Groq (${mode}) server error:`, data.error || response.status);
-      throw new Error(data.error || ('Server returned status ' + response.status));
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseErr) {
+      // Server returned something that wasn't valid JSON (e.g. a PHP
+      // fatal error printed as raw HTML). Surface that clearly.
+      console.warn(`Groq (${mode}) returned non-JSON response, status ${response.status}`);
+      return { success: false, error: `Server error (status ${response.status}) — response wasn't valid JSON. Check your groq-api.php for PHP errors.` };
     }
-    return data.result ? String(data.result).trim() : null;
+
+    if (!response.ok || data.error) {
+      const errMsg = data.error || `Server returned status ${response.status}`;
+      console.warn(`Groq (${mode}) server error:`, errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    if (!data.result) {
+      return { success: false, error: 'Server responded but sent no result.' };
+    }
+
+    return { success: true, result: String(data.result).trim() };
   }catch(err){
-    console.warn('Groq AI call failed:', err);
-    return null;
+    const isTimeout = err.name === 'AbortError';
+    const msg = isTimeout ? 'Request timed out — server took too long to respond.' : (err.message || 'Network error.');
+    console.warn(`Groq (${mode}) call failed:`, msg);
+    return { success: false, error: msg };
   }
 }
 
@@ -1973,8 +1988,8 @@ async function translateMessage(id){
   const bubbleText = row ? row.querySelector('.bubble').innerText : '';
   if (!bubbleText){ box.innerText = 'Nothing to translate.'; return; }
 
-  const result = await callGroqChat('translate', bubbleText, 'English');
-  box.innerText = result || "Couldn't translate this message.";
+  const response = await callGroqChat('translate', bubbleText, 'English');
+  box.innerText = response.success ? response.result : `⚠️ ${response.error}`;
 }
 
 /* =======================================================
@@ -1985,10 +2000,10 @@ async function checkAndUpdateMood(text){
   moodSampleCounter++;
   if (moodSampleCounter % 3 !== 0) return;
 
-  const sentiment = await callGroqChat('sentiment', text);
-  if (!sentiment) return;
+  const response = await callGroqChat('sentiment', text);
+  if (!response.success) return; // fails silently — mood tracker is a nice-to-have, not critical
 
-  db.ref(`mood/${ROOM}`).set({ sentiment: sentiment.trim(), ts: Date.now() });
+  db.ref(`mood/${ROOM}`).set({ sentiment: response.result.trim(), ts: Date.now() });
 }
 
 function listenMood(){
@@ -2013,11 +2028,11 @@ let smartReplyDebounce = null;
 function generateSmartReplies(latestText){
   clearTimeout(smartReplyDebounce);
   smartReplyDebounce = setTimeout(async () => {
-    const result = await callGroqChat('smart_reply', latestText);
+    const response = await callGroqChat('smart_reply', latestText);
     const box = document.getElementById('smart-replies');
-    if (!result){ box.classList.remove('show'); return; }
+    if (!response.success){ box.classList.remove('show'); return; }
 
-    const suggestions = result.split('|').map(s => s.trim()).filter(Boolean).slice(0, 3);
+    const suggestions = response.result.split('|').map(s => s.trim()).filter(Boolean).slice(0, 3);
     if (suggestions.length === 0){ box.classList.remove('show'); return; }
 
     box.innerHTML = suggestions.map(s =>
@@ -2094,8 +2109,8 @@ function openCatchupModal(){
     }
 
     const chatDump = lines.join('\n').slice(0, 2500);
-    const summary = await callGroqChat('catchup', '', chatDump);
-    contentEl.innerText = summary || "Couldn't generate a summary right now.";
+    const response = await callGroqChat('catchup', '', chatDump);
+    contentEl.innerText = response.success ? response.result : `⚠️ ${response.error}`;
   });
 }
 function closeCatchupModal(){
@@ -2110,16 +2125,16 @@ async function suggestUsername(){
   btn.disabled = true;
   btn.innerText = 'Thinking...';
 
-  const suggestion = await callGroqChat('username', 'generate a name');
+  const response = await callGroqChat('username', 'generate a name');
   btn.disabled = false;
   btn.innerText = '🎲 Suggest a name for me';
 
-  if (suggestion){
-    nameInputEl.value = suggestion.replace(/["'.]/g, '').slice(0, 24);
+  if (response.success){
+    nameInputEl.value = response.result.replace(/["'.]/g, '').slice(0, 24);
     nameInputEl.classList.remove('invalid');
     nameErrorEl.innerText = '';
   } else {
-    showToast("Couldn't generate a name, try again.");
+    showToast(`⚠️ ${response.error}`);
   }
 }
 
@@ -2130,13 +2145,12 @@ async function handleBotMention(text){
   const question = text.replace(/(^|\s)@bot\b/i, '').trim();
   if (!question) return;
 
-  const reply = await callGroqChat('bot', question);
-  if (!reply) return;
+  const response = await callGroqChat('bot', question);
 
   db.ref(`chats/${ROOM}/messages`).push({
     sender: 'bot_creshy',
     senderName: '🤖 Creshy Bot',
-    text: reply,
+    text: response.success ? response.result : `⚠️ Sorry, I couldn't answer that right now (${response.error})`,
     timestamp: Date.now(),
     likes: null,
     dislikes: null,
