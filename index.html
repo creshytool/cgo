@@ -1883,19 +1883,16 @@ async function sendGif(url){
    replies, catch-up, username, and @bot)
 ======================================================= */
 /* =======================================================
-   GROQ AI HELPER — pure client-side (calls Groq directly
-   from the browser, no backend/PHP involved).
-
-   NOTE: This means GROQ_API_KEY below is visible to anyone
-   who views this page's source. Kept this way on request.
+   GROQ AI HELPER — calls the SAME /groq-api.php backend
+   used by your AI Teacher tool. Real Groq API key stays
+   only in that backend file, never exposed in this page.
+   Request shape: { prompt, instruction, max_tokens }
+   Response shape: { result: "..." }
 ======================================================= */
-const GROQ_API_KEY = "groq-api.php"; // <-- paste your real Groq API key
-const GROQ_MODEL = "llama-3.1-8b-instant";
-const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
-// Hardcoded system prompts per mode — same behavior as before,
-// just run entirely in the browser now instead of on a server.
-const GROQ_SYSTEM_PROMPTS = {
+// Hardcoded instructions per mode — sent as the "instruction"
+// field, same way your AI Teacher tool sends its teacher prompt.
+const GROQ_INSTRUCTIONS = {
   translate:   (extra) => `You are a translator. Translate the user's message into ${extra || 'English'}. Reply with ONLY the translation, nothing else, no quotes, no explanation.`,
   sentiment:   () => "You are a sentiment classifier. Read the message and reply with ONLY one word: Positive, Negative, Neutral, or Heated. No punctuation, no explanation.",
   smart_reply: () => "You generate 3 short, casual quick-reply suggestions (each under 6 words) that someone could send in response to the given message. Reply with ONLY the 3 suggestions separated by | and nothing else. Example: Haha true|Same here|What happened?",
@@ -1904,15 +1901,16 @@ const GROQ_SYSTEM_PROMPTS = {
   bot:         () => "You are a friendly, helpful assistant inside a group chat called Creshy. Keep answers short (2-3 sentences max), casual, and helpful. Never generate harmful, sexual, or hateful content."
 };
 
-async function callGroqChat(mode, text, extra){
-  if (!GROQ_API_KEY || GROQ_API_KEY === "YOUR_GROQ_API_KEY_HERE"){
-    console.warn("Groq API key not set.");
-    return null;
-  }
-  const promptBuilder = GROQ_SYSTEM_PROMPTS[mode];
-  if (!promptBuilder) return null;
+const GROQ_MAX_TOKENS = {
+  translate: 120, sentiment: 20, smart_reply: 120,
+  catchup: 350, username: 20, bot: 150
+};
 
-  const systemPrompt = promptBuilder(extra);
+async function callGroqChat(mode, text, extra){
+  const instructionBuilder = GROQ_INSTRUCTIONS[mode];
+  if (!instructionBuilder) return null;
+
+  const instruction = instructionBuilder(extra);
   const userContent = (mode === 'catchup') ? (extra || '') : (text || '');
   if (!userContent) return null;
 
@@ -1920,30 +1918,21 @@ async function callGroqChat(mode, text, extra){
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-    const res = await fetch(GROQ_ENDPOINT, {
+    const response = await fetch('/groq-api.php', {
       method: 'POST',
       signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + GROQ_API_KEY
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent.slice(0, 3000) }
-        ],
-        max_tokens: mode === 'catchup' ? 350 : 120,
-        temperature: 0.6
+        prompt: userContent.slice(0, 3000),
+        instruction: instruction,
+        max_tokens: GROQ_MAX_TOKENS[mode] || 120
       })
     });
     clearTimeout(timeoutId);
 
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error((data.error && data.error.message) || 'AI request failed.');
-    return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
-      ? data.choices[0].message.content.trim()
-      : null;
+    const data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error || 'AI request failed.');
+    return data.result ? String(data.result).trim() : null;
   }catch(err){
     console.warn('Groq AI call failed:', err);
     return null;
