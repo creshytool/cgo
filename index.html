@@ -1187,7 +1187,7 @@ function renderMessage(id, msg){
   html += `<div class="msg-meta">${formatTime(msg.timestamp)}</div>`;
   html += `
     <div class="msg-actions">
-      <button class="action-btn heart-btn">❤️ <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'reactions')">${summarizeReactions(msg.reactions).total}</span></button>
+      <button class="action-btn heart-btn"><span class="reaction-icon">❤️</span> <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'reactions')">${summarizeReactions(msg.reactions).total}</span></button>
       <button class="action-btn like-btn" onclick="reactMsg('${id}','like')">👍 <span class="like-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'likes')">${countReactions(msg.likes)}</span></button>
       <button class="action-btn dislike-btn" onclick="reactMsg('${id}','dislike')">👎 <span class="dislike-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'dislikes')">${countReactions(msg.dislikes)}</span></button>
       <button class="action-btn" onclick="startReply('${id}', ${jsAttr(msg.text)}, ${jsAttr(isMine ? 'You' : (msg.senderName || 'Anonymous'))})">↩ Reply</button>
@@ -1253,7 +1253,12 @@ function applyReactionHighlight(id, msg){
   const heartBtn = row.querySelector('.heart-btn');
   likeBtn.classList.toggle('active-like', !!(msg.likes && msg.likes[myId]));
   dislikeBtn.classList.toggle('active-dislike', !!(msg.dislikes && msg.dislikes[myId]));
-  if (heartBtn) heartBtn.classList.toggle('active-heart', !!summarizeReactions(msg.reactions).mine);
+  if (heartBtn){
+    const rx = summarizeReactions(msg.reactions);
+    heartBtn.classList.toggle('active-heart', !!rx.mine);
+    const iconEl = heartBtn.querySelector('.reaction-icon');
+    if (iconEl) iconEl.innerText = rx.mine || '❤️';
+  }
 }
 
 function countReactions(obj){
@@ -1296,7 +1301,7 @@ function renderComments(msgId, comments){
       h += escapeHtml(c.text);
       h += `
         <div class="comment-actions">
-          <button class="action-btn heart-btn">❤️ <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','reactions')">${summarizeReactions(c.reactions).total}</span></button>
+          <button class="action-btn heart-btn"><span class="reaction-icon">❤️</span> <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','reactions')">${summarizeReactions(c.reactions).total}</span></button>
           <button class="action-btn like-btn" onclick="reactComment('${msgId}','${cId}','like')">👍 <span class="like-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','likes')">${countReactions(c.likes)}</span></button>
           <button class="action-btn dislike-btn" onclick="reactComment('${msgId}','${cId}','dislike')">👎 <span class="dislike-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','dislikes')">${countReactions(c.dislikes)}</span></button>
           <button class="action-btn" onclick="startCommentReply('${msgId}','${cId}', ${jsAttr(c.text)}, ${jsAttr(cDisplayName)})">↩ Reply</button>
@@ -1329,7 +1334,12 @@ function applyCommentReactionHighlight(msgId, cId, c){
   const heartBtn = row.querySelector('.heart-btn');
   if (likeBtn) likeBtn.classList.toggle('active-like', !!(c.likes && c.likes[myId]));
   if (dislikeBtn) dislikeBtn.classList.toggle('active-dislike', !!(c.dislikes && c.dislikes[myId]));
-  if (heartBtn) heartBtn.classList.toggle('active-heart', !!summarizeReactions(c.reactions).mine);
+  if (heartBtn){
+    const rx = summarizeReactions(c.reactions);
+    heartBtn.classList.toggle('active-heart', !!rx.mine);
+    const iconEl = heartBtn.querySelector('.reaction-icon');
+    if (iconEl) iconEl.innerText = rx.mine || '❤️';
+  }
 }
 
 function reactComment(msgId, cId, type){
