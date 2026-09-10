@@ -506,25 +506,6 @@
 
   /* ================= NEW FEATURES CSS ================= */
 
-  /* Daily Prompt Banner */
-  #daily-prompt{
-    display:none;
-    background:linear-gradient(135deg,#fff4e5,#fef9f0);
-    border-bottom:1px solid #f0dfc0;
-    padding:10px 14px;
-    font-size:12.5px;
-    color:#92400e;
-    align-items:center;
-    gap:8px;
-  }
-  #daily-prompt.show{display:flex;}
-  #daily-prompt .dp-icon{font-size:16px;flex-shrink:0;}
-  #daily-prompt .dp-text{flex:1;}
-  #daily-prompt .dp-close{
-    background:none;border:none;color:#92400e;
-    font-size:14px;cursor:pointer;opacity:.7;
-  }
-
   /* Header extras: search + leaderboard + karma */
   #header-extra-row{
     display:flex;
@@ -717,25 +698,6 @@
     display:block;
   }
 
-  /* Smart reply suggestions strip */
-  #smart-replies{
-    display:none;
-    gap:6px;
-    padding:6px 12px 0;
-    flex-wrap:wrap;
-  }
-  #smart-replies.show{display:flex;}
-  .smart-reply-chip{
-    background:#f2f3f5;
-    border:1px solid #e4e7ea;
-    color:var(--text);
-    font-size:12px;
-    padding:6px 12px;
-    border-radius:16px;
-    cursor:pointer;
-  }
-  .smart-reply-chip:hover{background:var(--accent);color:#04211c;border-color:var(--accent);}
-
   /* reactor names list (who liked) */
   .reactor-names{
     font-size:10px;
@@ -762,12 +724,6 @@
 
   <div id="notice">This is a fully anonymous space. Please respect everyone. Adult, abusive, or inappropriate content is automatically filtered, and links are not allowed. If you spot spam or anything that shouldn't be here, report it immediately using the ⚑ button.</div>
 
-  <div id="daily-prompt">
-    <span class="dp-icon">💡</span>
-    <span class="dp-text" id="daily-prompt-text"></span>
-    <button class="dp-close" onclick="closeDailyPrompt()">✕</button>
-  </div>
-
   <div id="online-countries"></div>
 
   <div id="search-bar">
@@ -781,8 +737,6 @@
     <span id="typing-names"></span>
     <span class="typing-dots"><span></span><span></span><span></span></span>
   </div>
-
-  <div id="smart-replies"></div>
 
   <div id="reply-preview">
     <div class="rp-text" id="reply-preview-text"></div>
@@ -809,7 +763,6 @@
     <input type="text" id="name-input" placeholder="Enter a name..." maxlength="24" autocomplete="off">
     <div id="name-error"></div>
     <button id="name-submit" onclick="submitName()">Join Chat</button>
-    <button id="name-suggest" onclick="suggestUsername()" style="margin-top:8px;width:100%;background:none;border:1px solid #d9dde1;color:var(--text-dim);padding:9px;border-radius:22px;cursor:pointer;font-size:12.5px;">🎲 Suggest a name for me</button>
   </div>
 </div>
 
@@ -861,6 +814,8 @@
     <button class="simple-modal-close" onclick="closeGifModal()">Close</button>
   </div>
 </div>
+
+<div id="reaction-picker"></div>
 
 <div id="toast"></div>
 
@@ -1109,7 +1064,6 @@ if (savedName) {
 }
 joinRoom();
 detectLocation();
-setTimeout(initDailyPrompt, 0);
 
 function joinRoom(){
   const presenceRef = db.ref(`presence/${ROOM}/${myId}`);
@@ -1153,7 +1107,6 @@ function listenMessages(){
     if (msg.reportCount && msg.reportCount >= REPORT_HIDE_THRESHOLD) return;
     renderedIds.add(id);
     renderMessage(id, msg);
-    if (msg.sender !== myId && msg.text) generateSmartReplies(msg.text);
   }, err => {
     console.error("Could not read messages (check Firebase database rules):", err);
     showToast("⚠️ Can't connect to chat · check Firebase database rules.");
@@ -1196,7 +1149,7 @@ function renderMessage(id, msg){
   html += `<div class="msg-meta">${formatTime(msg.timestamp)}</div>`;
   html += `
     <div class="msg-actions">
-      <button class="action-btn heart-btn" onclick="reactMsg('${id}','heart')">❤️ <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'hearts')">${countReactions(msg.hearts)}</span></button>
+      <button class="action-btn heart-btn">❤️ <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'reactions')">${summarizeReactions(msg.reactions).total}</span></button>
       <button class="action-btn like-btn" onclick="reactMsg('${id}','like')">👍 <span class="like-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'likes')">${countReactions(msg.likes)}</span></button>
       <button class="action-btn dislike-btn" onclick="reactMsg('${id}','dislike')">👎 <span class="dislike-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'dislikes')">${countReactions(msg.dislikes)}</span></button>
       <button class="action-btn" onclick="startReply('${id}', ${jsAttr(msg.text)}, ${jsAttr(isMine ? 'You' : (msg.senderName || 'Anonymous'))})">↩ Reply</button>
@@ -1226,6 +1179,10 @@ function renderMessage(id, msg){
   if (bubbleEl){
     attachSwipeToReply(bubbleEl, () => startReply(id, msg.text, isMine ? 'You' : (msg.senderName || 'Anonymous')));
   }
+  const heartBtnEl = row.querySelector('.heart-btn');
+  if (heartBtnEl){
+    attachReactionPicker(heartBtnEl, id, null);
+  }
 }
 
 function updateMessageUI(id, msg){
@@ -1241,7 +1198,7 @@ function updateMessageUI(id, msg){
   const heartCountEl = row.querySelector('.heart-count');
   if (likeCountEl) likeCountEl.innerText = countReactions(msg.likes);
   if (dislikeCountEl) dislikeCountEl.innerText = countReactions(msg.dislikes);
-  if (heartCountEl) heartCountEl.innerText = countReactions(msg.hearts);
+  if (heartCountEl) heartCountEl.innerText = summarizeReactions(msg.reactions).total;
   applyReactionHighlight(id, msg);
   if (msg.comments){
     renderComments(id, msg.comments);
@@ -1258,11 +1215,28 @@ function applyReactionHighlight(id, msg){
   const heartBtn = row.querySelector('.heart-btn');
   likeBtn.classList.toggle('active-like', !!(msg.likes && msg.likes[myId]));
   dislikeBtn.classList.toggle('active-dislike', !!(msg.dislikes && msg.dislikes[myId]));
-  if (heartBtn) heartBtn.classList.toggle('active-heart', !!(msg.hearts && msg.hearts[myId]));
+  if (heartBtn) heartBtn.classList.toggle('active-heart', !!summarizeReactions(msg.reactions).mine);
 }
 
 function countReactions(obj){
   return obj ? Object.keys(obj).length : 0;
+}
+
+/* Groups a {userId: {emoji, name}} reactions object into totals + the
+   current user's own pick, so any message/comment can carry many
+   different emoji reactions instead of a single fixed heart. */
+function summarizeReactions(reactions){
+  if (!reactions) return { total: 0, groups: [], mine: null };
+  const groups = {};
+  let mine = null;
+  Object.entries(reactions).forEach(([uid, r]) => {
+    if (!r || !r.emoji) return;
+    groups[r.emoji] = (groups[r.emoji] || 0) + 1;
+    if (uid === myId) mine = r.emoji;
+  });
+  const sorted = Object.entries(groups).sort((a, b) => b[1] - a[1]).map(([emoji, count]) => ({ emoji, count }));
+  const total = sorted.reduce((s, g) => s + g.count, 0);
+  return { total, groups: sorted, mine };
 }
 
 function renderComments(msgId, comments){
@@ -1284,7 +1258,7 @@ function renderComments(msgId, comments){
       h += escapeHtml(c.text);
       h += `
         <div class="comment-actions">
-          <button class="action-btn heart-btn" onclick="reactComment('${msgId}','${cId}','heart')">❤️ <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','hearts')">${countReactions(c.hearts)}</span></button>
+          <button class="action-btn heart-btn">❤️ <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','reactions')">${summarizeReactions(c.reactions).total}</span></button>
           <button class="action-btn like-btn" onclick="reactComment('${msgId}','${cId}','like')">👍 <span class="like-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','likes')">${countReactions(c.likes)}</span></button>
           <button class="action-btn dislike-btn" onclick="reactComment('${msgId}','${cId}','dislike')">👎 <span class="dislike-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','dislikes')">${countReactions(c.dislikes)}</span></button>
           <button class="action-btn" onclick="startCommentReply('${msgId}','${cId}', ${jsAttr(c.text)}, ${jsAttr(cDisplayName)})">↩ Reply</button>
@@ -1304,6 +1278,8 @@ function renderComments(msgId, comments){
     const cIsMine = c.sender === myId;
     const cDisplayName = cIsMine ? 'You' : (c.senderName || 'Anonymous');
     attachSwipeToReply(cRow, () => startCommentReply(msgId, cId, c.text, cDisplayName));
+    const cHeartBtn = cRow.querySelector('.heart-btn');
+    if (cHeartBtn) attachReactionPicker(cHeartBtn, msgId, cId);
   });
 }
 
@@ -1315,20 +1291,12 @@ function applyCommentReactionHighlight(msgId, cId, c){
   const heartBtn = row.querySelector('.heart-btn');
   if (likeBtn) likeBtn.classList.toggle('active-like', !!(c.likes && c.likes[myId]));
   if (dislikeBtn) dislikeBtn.classList.toggle('active-dislike', !!(c.dislikes && c.dislikes[myId]));
-  if (heartBtn) heartBtn.classList.toggle('active-heart', !!(c.hearts && c.hearts[myId]));
+  if (heartBtn) heartBtn.classList.toggle('active-heart', !!summarizeReactions(c.reactions).mine);
 }
 
 function reactComment(msgId, cId, type){
   const base = `chats/${ROOM}/messages/${msgId}/comments/${cId}`;
   const reactorName = myName || 'Anonymous';
-  if (type === 'heart'){
-    const heartPath = `${base}/hearts/${myId}`;
-    db.ref(heartPath).once('value', snap => {
-      if (snap.exists()) db.ref(heartPath).remove();
-      else db.ref(heartPath).set(reactorName);
-    });
-    return;
-  }
   const path = `${base}/${type === 'like' ? 'likes' : 'dislikes'}/${myId}`;
   const oppositePath = `${base}/${type === 'like' ? 'dislikes' : 'likes'}/${myId}`;
   db.ref(path).once('value', snap => {
@@ -1376,14 +1344,6 @@ function cancelReply(){
 
 function reactMsg(id, type){
   const reactorName = myName || 'Anonymous';
-  if (type === 'heart'){
-    const heartPath = `chats/${ROOM}/messages/${id}/hearts/${myId}`;
-    db.ref(heartPath).once('value', snap => {
-      if (snap.exists()) db.ref(heartPath).remove();
-      else db.ref(heartPath).set(reactorName);
-    });
-    return;
-  }
   const path = `chats/${ROOM}/messages/${id}/${type === 'like' ? 'likes' : 'dislikes'}/${myId}`;
   const oppositePath = `chats/${ROOM}/messages/${id}/${type === 'like' ? 'dislikes' : 'likes'}/${myId}`;
   db.ref(path).once('value', snap => {
@@ -1396,6 +1356,106 @@ function reactMsg(id, type){
   });
 }
 
+/* =======================================================
+   MULTI-EMOJI REACTIONS (long-press the heart button)
+   Quick tap toggles a default ❤️. Holding the button opens
+   a small picker so any emoji can be given instead.
+======================================================= */
+const REACTION_EMOJIS = ['❤️','😂','😮','😢','😡','🔥'];
+let reactionPickerTarget = null;
+let reactionLongPressFired = false;
+
+function reactionPath(msgId, commentId){
+  return commentId
+    ? `chats/${ROOM}/messages/${msgId}/comments/${commentId}/reactions/${myId}`
+    : `chats/${ROOM}/messages/${msgId}/reactions/${myId}`;
+}
+
+function setOrToggleReaction(msgId, commentId, emoji){
+  const reactorName = myName || 'Anonymous';
+  const path = reactionPath(msgId, commentId);
+  db.ref(path).once('value', snap => {
+    if (snap.exists() && snap.val().emoji === emoji){
+      db.ref(path).remove();
+    } else {
+      db.ref(path).set({ emoji, name: reactorName });
+    }
+  });
+}
+
+function showReactionPicker(btn, msgId, commentId){
+  const picker = document.getElementById('reaction-picker');
+  picker.innerHTML = REACTION_EMOJIS.map(e =>
+    `<button class="reaction-picker-emoji" onclick="pickReaction('${e}')">${e}</button>`
+  ).join('');
+  reactionPickerTarget = { msgId, commentId };
+  picker.classList.add('show');
+
+  const rect = btn.getBoundingClientRect();
+  const pw = picker.offsetWidth || 220;
+  let left = rect.left;
+  if (left + pw > window.innerWidth - 10) left = window.innerWidth - pw - 10;
+  if (left < 10) left = 10;
+  let top = rect.top - 46;
+  if (top < 10) top = rect.bottom + 8;
+  picker.style.left = left + 'px';
+  picker.style.top = top + 'px';
+
+  if (navigator.vibrate) navigator.vibrate(15);
+}
+
+function hideReactionPicker(){
+  document.getElementById('reaction-picker').classList.remove('show');
+  reactionPickerTarget = null;
+}
+
+function pickReaction(emoji){
+  if (!reactionPickerTarget) return;
+  const { msgId, commentId } = reactionPickerTarget;
+  setOrToggleReaction(msgId, commentId, emoji);
+  hideReactionPicker();
+}
+
+document.addEventListener('click', (e) => {
+  const picker = document.getElementById('reaction-picker');
+  if (picker.classList.contains('show') && !picker.contains(e.target) && !e.target.closest('.heart-btn')){
+    hideReactionPicker();
+  }
+});
+
+// Attaches long-press (hold ~420ms) to open the emoji picker, while a
+// normal quick tap still toggles the default ❤️ reaction like before.
+function attachReactionPicker(btn, msgId, commentId){
+  let pressTimer = null;
+
+  function start(){
+    reactionLongPressFired = false;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {
+      reactionLongPressFired = true;
+      showReactionPicker(btn, msgId, commentId);
+    }, 420);
+  }
+  function cancelPress(){
+    clearTimeout(pressTimer);
+  }
+  function onClick(){
+    if (reactionLongPressFired){
+      reactionLongPressFired = false;
+      return;
+    }
+    setOrToggleReaction(msgId, commentId, '❤️');
+  }
+
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('mouseup', cancelPress);
+  btn.addEventListener('mouseleave', cancelPress);
+  btn.addEventListener('touchstart', start, { passive: true });
+  btn.addEventListener('touchend', cancelPress);
+  btn.addEventListener('touchcancel', cancelPress);
+  btn.addEventListener('click', onClick);
+}
+
 function showReactorNames(msgId, commentId, field){
   const path = commentId
     ? `chats/${ROOM}/messages/${msgId}/comments/${commentId}/${field}`
@@ -1405,8 +1465,17 @@ function showReactorNames(msgId, commentId, field){
       showToast("No reactions yet.");
       return;
     }
+    if (field === 'reactions'){
+      const parts = Object.values(snap.val()).filter(r => r && r.name).map(r => `${r.emoji} ${r.name}`);
+      if (parts.length === 0){
+        showToast("No reactions yet.");
+        return;
+      }
+      showToast(parts.join(', '));
+      return;
+    }
     const names = Object.values(snap.val()).filter(v => typeof v === 'string');
-    const icon = field === 'hearts' ? '❤️' : field === 'likes' ? '👍' : '👎';
+    const icon = field === 'likes' ? '👍' : '👎';
     if (names.length === 0){
       showToast("No reactions yet.");
       return;
@@ -1423,11 +1492,11 @@ function listenKarma(){
     let total = 0;
     snap.forEach(child => {
       const m = child.val();
-      total += countReactions(m.hearts) + countReactions(m.likes);
+      total += summarizeReactions(m.reactions).total + countReactions(m.likes);
       if (m.comments){
         Object.values(m.comments).forEach(c => {
           if (c.sender === myId){
-            total += countReactions(c.hearts) + countReactions(c.likes);
+            total += summarizeReactions(c.reactions).total + countReactions(c.likes);
           }
         });
       }
@@ -1581,47 +1650,6 @@ function renderOnlineCountries(snap){
   el.classList.add('show');
 }
 
-const DAILY_PROMPTS = [
-  "How's your mood today? Describe it in one emoji 👇",
-  "What's the best thing that happened to you today?",
-  "If you could be invisible for a day, what would you do?",
-  "A secret you've never told anyone?",
-  "What's your favorite movie/show and why?",
-  "If you won the lottery, what's the first thing you'd do?",
-  "Learned something new today? Share it!",
-  "Something everyone does but never admits to?",
-  "What are your weekend plans?",
-  "If you could visit only one place in the world, where would it be?",
-  "What's your favorite food?",
-  "What's the weirdest dream you've ever had?",
-  "What's one piece of advice that changed your life?",
-  "If you had a superpower, which one would you pick?",
-  "What are you grateful for today?"
-];
-
-function getDayOfYear(){
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const diff = now - start;
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
-}
-
-function initDailyPrompt(){
-  const todayStr = new Date().toDateString();
-  const dismissedFor = localStorage.getItem('creshy_prompt_dismissed');
-  if (dismissedFor === todayStr) return;
-  const promptIndex = getDayOfYear() % DAILY_PROMPTS.length;
-  const promptText = DAILY_PROMPTS[promptIndex];
-  document.getElementById('daily-prompt-text').innerText = promptText;
-  document.getElementById('daily-prompt').classList.add('show');
-}
-
-function closeDailyPrompt(){
-  const todayStr = new Date().toDateString();
-  try{ localStorage.setItem('creshy_prompt_dismissed', todayStr); }catch(e){}
-  document.getElementById('daily-prompt').classList.remove('show');
-}
-
 const knownSenderNames = new Set();
 
 function handleMentionTrigger(){
@@ -1695,7 +1723,7 @@ async function sendGif(url){
       timestamp: Date.now(),
       likes: null,
       dislikes: null,
-      hearts: null,
+      reactions: null,
       reportCount: 0,
       countryFlag: myCountryFlag || null,
       countryName: myCountryName || null,
@@ -1713,16 +1741,14 @@ async function sendGif(url){
 }
 
 /* =======================================================
-   GROQ AI HELPER (shared by smart replies, username, @bot)
+   GROQ AI HELPER (used by the @bot companion)
 ======================================================= */
 const GROQ_INSTRUCTIONS = {
-  smart_reply: () => "You generate 3 short, casual quick-reply suggestions (each under 6 words) that someone could send in response to the given message. Reply with ONLY the 3 suggestions separated by | and nothing else. Example: Haha true|Same here|What happened?",
-  username:    () => "Generate one short, fun, anonymous-style display name (like 'MysteriousPenguin42' or 'QuietRiver7'). Reply with ONLY the name, nothing else.",
-  bot:         () => "You are a friendly, helpful assistant inside a group chat called Creshy. Keep answers short (2-3 sentences max), casual, and helpful. Never generate harmful, sexual, or hateful content."
+  bot: () => "You are a friendly, helpful assistant inside a group chat called Creshy. Keep answers short (2-3 sentences max), casual, and helpful. Never generate harmful, sexual, or hateful content."
 };
 
 const GROQ_MAX_TOKENS = {
-  smart_reply: 120, username: 20, bot: 150
+  bot: 150
 };
 
 async function callGroqChat(mode, text, extra){
@@ -1770,28 +1796,6 @@ async function callGroqChat(mode, text, extra){
   }
 }
 
-let smartReplyDebounce = null;
-function generateSmartReplies(latestText){
-  clearTimeout(smartReplyDebounce);
-  smartReplyDebounce = setTimeout(async () => {
-    const response = await callGroqChat('smart_reply', latestText);
-    const box = document.getElementById('smart-replies');
-    if (!response.success){ box.classList.remove('show'); return; }
-    const suggestions = response.result.split('|').map(s => s.trim()).filter(Boolean).slice(0, 3);
-    if (suggestions.length === 0){ box.classList.remove('show'); return; }
-    box.innerHTML = suggestions.map(s =>
-      `<div class="smart-reply-chip" onclick="useSmartReply(${jsAttr(s)})">${escapeHtml(s)}</div>`
-    ).join('');
-    box.classList.add('show');
-  }, 1200);
-}
-
-function useSmartReply(text){
-  inputEl.value = text;
-  document.getElementById('smart-replies').classList.remove('show');
-  inputEl.focus();
-}
-
 function openLeaderboardModal(){
   const listEl = document.getElementById('leaderboard-list');
   listEl.innerHTML = '<p style="font-size:12px;color:var(--text-dim);">Loading...</p>';
@@ -1803,7 +1807,7 @@ function openLeaderboardModal(){
     snap.forEach(child => {
       const m = child.val();
       if (m.reportCount && m.reportCount >= REPORT_HIDE_THRESHOLD) return;
-      const score = countReactions(m.hearts) + countReactions(m.likes);
+      const score = summarizeReactions(m.reactions).total + countReactions(m.likes);
       if (score > 0 && m.text) items.push({ text: m.text, name: m.senderName || 'Anonymous', score });
     });
     items.sort((a,b) => b.score - a.score);
@@ -1824,22 +1828,6 @@ function closeLeaderboardModal(){
   document.getElementById('leaderboard-modal').classList.remove('show');
 }
 
-async function suggestUsername(){
-  const btn = document.getElementById('name-suggest');
-  btn.disabled = true;
-  btn.innerText = 'Thinking...';
-  const response = await callGroqChat('username', 'generate a name');
-  btn.disabled = false;
-  btn.innerText = '🎲 Suggest a name for me';
-  if (response.success){
-    nameInputEl.value = response.result.replace(/["'.]/g, '').slice(0, 24);
-    nameInputEl.classList.remove('invalid');
-    nameErrorEl.innerText = '';
-  } else {
-    showToast(`⚠️ ${response.error}`);
-  }
-}
-
 async function handleBotMention(text){
   const question = text.replace(/(^|\s)@bot\b/i, '').trim();
   if (!question) return;
@@ -1851,7 +1839,7 @@ async function handleBotMention(text){
     timestamp: Date.now(),
     likes: null,
     dislikes: null,
-    hearts: null,
+    reactions: null,
     reportCount: 0
   });
 }
@@ -2009,7 +1997,7 @@ async function handleSend(){
       timestamp: Date.now(),
       likes: null,
       dislikes: null,
-      hearts: null,
+      reactions: null,
       reportCount: 0,
       countryFlag: myCountryFlag || null,
       countryName: myCountryName || null,
