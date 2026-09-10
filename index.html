@@ -698,6 +698,44 @@
     display:block;
   }
 
+  /* Multi-emoji reaction picker (hover/hold the heart button).
+     Facebook-style floating pill that pops up above the button. */
+  #reaction-picker{
+    position:fixed;
+    display:none;
+    align-items:center;
+    background:#ffffff;
+    border:1px solid #e4e7ea;
+    border-radius:28px;
+    box-shadow:0 12px 30px rgba(0,0,0,0.22);
+    padding:6px 8px;
+    gap:2px;
+    z-index:90;
+    transform-origin:bottom center;
+  }
+  #reaction-picker.show{
+    display:flex;
+    animation:reactionPopIn .16s ease;
+  }
+  @keyframes reactionPopIn{
+    from{opacity:0;transform:scale(.6) translateY(8px);}
+    to{opacity:1;transform:scale(1) translateY(0);}
+  }
+  .reaction-picker-emoji{
+    background:none;
+    border:none;
+    font-size:21px;
+    line-height:1;
+    cursor:pointer;
+    padding:5px 6px;
+    border-radius:50%;
+    transition:transform .12s ease, background .12s ease;
+  }
+  .reaction-picker-emoji:hover{
+    background:#f2f3f5;
+    transform:scale(1.4) translateY(-6px);
+  }
+
   /* reactor names list (who liked) */
   .reactor-names{
     font-size:10px;
@@ -1389,8 +1427,18 @@ function showReactionPicker(btn, msgId, commentId){
     `<button class="reaction-picker-emoji" onclick="pickReaction('${e}')">${e}</button>`
   ).join('');
   reactionPickerTarget = { msgId, commentId };
+  cancelHideReactionPicker();
   picker.classList.add('show');
+  positionReactionPicker(btn);
 
+  if (navigator.vibrate) navigator.vibrate(15);
+}
+
+// Recomputes the picker's on-screen position from the button's current
+// location. Called on open, and kept in sync while open so a resize
+// doesn't leave it floating over the wrong spot.
+function positionReactionPicker(btn){
+  const picker = document.getElementById('reaction-picker');
   const rect = btn.getBoundingClientRect();
   const pw = picker.offsetWidth || 220;
   let left = rect.left;
@@ -1400,8 +1448,6 @@ function showReactionPicker(btn, msgId, commentId){
   if (top < 10) top = rect.bottom + 8;
   picker.style.left = left + 'px';
   picker.style.top = top + 'px';
-
-  if (navigator.vibrate) navigator.vibrate(15);
 }
 
 function hideReactionPicker(){
@@ -1423,21 +1469,57 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Attaches long-press (hold ~420ms) to open the emoji picker, while a
-// normal quick tap still toggles the default ❤️ reaction like before.
+// The picker is position:fixed to the screen, so if the page itself
+// scrolls (the widget is embedded inside a longer page) it must be
+// closed instead of left floating over the wrong spot — this is what
+// caused it to appear stuck near the top of the page.
+window.addEventListener('scroll', hideReactionPicker, true);
+window.addEventListener('resize', hideReactionPicker);
+
+// Keep the picker open while the pointer travels from the button into
+// the picker itself (there's a small gap between them).
+let reactionHoverHideTimer = null;
+function scheduleHideReactionPicker(){
+  clearTimeout(reactionHoverHideTimer);
+  reactionHoverHideTimer = setTimeout(hideReactionPicker, 250);
+}
+function cancelHideReactionPicker(){
+  clearTimeout(reactionHoverHideTimer);
+}
+(function initReactionPickerHover(){
+  const picker = document.getElementById('reaction-picker');
+  picker.addEventListener('mouseenter', cancelHideReactionPicker);
+  picker.addEventListener('mouseleave', scheduleHideReactionPicker);
+})();
+
+// Facebook-style: hovering the button (desktop) opens the picker after
+// a short dwell; holding it down (mobile) opens it too. A quick tap
+// with neither still toggles the default ❤️, same as before.
 function attachReactionPicker(btn, msgId, commentId){
   let pressTimer = null;
+  let hoverTimer = null;
 
+  function openPicker(){
+    reactionLongPressFired = true;
+    showReactionPicker(btn, msgId, commentId);
+  }
   function start(){
     reactionLongPressFired = false;
     clearTimeout(pressTimer);
-    pressTimer = setTimeout(() => {
-      reactionLongPressFired = true;
-      showReactionPicker(btn, msgId, commentId);
-    }, 420);
+    pressTimer = setTimeout(openPicker, 420);
   }
   function cancelPress(){
     clearTimeout(pressTimer);
+  }
+  function onMouseEnter(){
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(openPicker, 450);
+    cancelHideReactionPicker();
+  }
+  function onMouseLeave(){
+    clearTimeout(hoverTimer);
+    cancelPress();
+    scheduleHideReactionPicker();
   }
   function onClick(){
     if (reactionLongPressFired){
@@ -1449,7 +1531,8 @@ function attachReactionPicker(btn, msgId, commentId){
 
   btn.addEventListener('mousedown', start);
   btn.addEventListener('mouseup', cancelPress);
-  btn.addEventListener('mouseleave', cancelPress);
+  btn.addEventListener('mouseenter', onMouseEnter);
+  btn.addEventListener('mouseleave', onMouseLeave);
   btn.addEventListener('touchstart', start, { passive: true });
   btn.addEventListener('touchend', cancelPress);
   btn.addEventListener('touchcancel', cancelPress);
