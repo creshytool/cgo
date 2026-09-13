@@ -183,6 +183,7 @@
     align-items:center;
     margin-top:4px;
     padding:0 4px;
+    flex-wrap:wrap;
   }
   .action-btn{
     background:none;
@@ -202,6 +203,27 @@
   .action-btn.active-dislike{color:var(--danger);}
   .action-btn.active-heart{color:#ff4d6d;}
   .action-btn.report-btn:hover{color:var(--danger);}
+
+  /* per-emoji reaction breakdown pills, shown next to the heart button */
+  .reaction-breakdown{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    cursor:pointer;
+  }
+  .reaction-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:2px;
+    font-size:11px;
+    background:rgba(0,0,0,0.045);
+    border-radius:10px;
+    padding:1px 6px;
+  }
+  .reaction-count-zero{
+    font-size:11px;
+    color:var(--text-dim);
+  }
 
   /* COMMENTS */
   .comments-box{
@@ -246,8 +268,10 @@
     gap:9px;
     align-items:center;
     margin-top:3px;
+    flex-wrap:wrap;
   }
   .comment-actions .action-btn{font-size:10px;padding:1px 3px;}
+  .comment-actions .reaction-pill{font-size:10px;padding:1px 5px;}
   .comment-reply-preview{
     display:none;
     background:rgba(0,0,0,0.04);
@@ -842,12 +866,49 @@
   <div class="simple-modal-box">
     <h4>🎬 Send a GIF / Sticker</h4>
     <div class="gif-grid" id="gif-grid">
-      <!-- ============================================= -->
-      <!-- PASTE YOUR OWN IMAGE/GIF LINKS HERE, e.g.:      -->
-      <!-- <div class="gif-item" onclick="sendGif('https://example.com/gif1.gif')"> -->
-      <!--   <img src="https://example.com/gif1.gif" alt="gif"> -->
-      <!-- </div>                                          -->
-      <!-- ============================================= -->
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/placidplace-headphones-20287_512.gif')"><img src="https://creshy.com/wp-content/uploads/placidplace-headphones-20287_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/grabill54-congratulations-13773_512.gif')"><img src="https://creshy.com/wp-content/uploads/grabill54-congratulations-13773_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/susan-lu4esm-little-girl-1374_512.gif')"><img src="https://creshy.com/wp-content/uploads/susan-lu4esm-little-girl-1374_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/placidplace-hello-7437_512.gif')"><img src="https://creshy.com/wp-content/uploads/placidplace-hello-7437_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/tilixia-summer-clap-hands-6897_512.gif')"><img src="https://creshy.com/wp-content/uploads/tilixia-summer-clap-hands-6897_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/winterflower-to-dance-3944_512.gif')"><img src="https://creshy.com/wp-content/uploads/winterflower-to-dance-3944_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/mxj_files-duck-26649_512.gif')"><img src="https://creshy.com/wp-content/uploads/mxj_files-duck-26649_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/countrygurl28-emotions-3201_512.gif')"><img src="https://creshy.com/wp-content/uploads/countrygurl28-emotions-3201_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/dantegrafico-mono-435_512.gif')"><img src="https://creshy.com/wp-content/uploads/dantegrafico-mono-435_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/ekkant-gifts-9307_512.gif')"><img src="https://creshy.com/wp-content/uploads/ekkant-gifts-9307_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/tilixia-summer-turn-6082_512.gif')"><img src="https://creshy.com/wp-content/uploads/tilixia-summer-turn-6082_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/placidplace-dog-15422_512.gif')"><img src="https://creshy.com/wp-content/uploads/placidplace-dog-15422_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/lorenzo7070-alegre-4097_512.gif')"><img src="https://creshy.com/wp-content/uploads/lorenzo7070-alegre-4097_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/mxj_files-snowman-24856_512.gif')"><img src="https://creshy.com/wp-content/uploads/mxj_files-snowman-24856_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/jendigitalart-bear-134_512.gif')"><img src="https://creshy.com/wp-content/uploads/jendigitalart-bear-134_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/kuzu420-dancing-27562_512.gif')"><img src="https://creshy.com/wp-content/uploads/kuzu420-dancing-27562_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/avedeto-cat-27279_512.gif')"><img src="https://creshy.com/wp-content/uploads/avedeto-cat-27279_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/emojibob-surprised-26736_512.gif')"><img src="https://creshy.com/wp-content/uploads/emojibob-surprised-26736_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/colenikol-potato-8819_512.gif')"><img src="https://creshy.com/wp-content/uploads/colenikol-potato-8819_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/prawny-emoji-25685_512.gif')"><img src="https://creshy.com/wp-content/uploads/prawny-emoji-25685_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/placidplace-emoji-11665_512.gif')"><img src="https://creshy.com/wp-content/uploads/placidplace-emoji-11665_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/psddude-new-6261_512.gif')"><img src="https://creshy.com/wp-content/uploads/psddude-new-6261_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/placidplace-emoji-11638_512.gif')"><img src="https://creshy.com/wp-content/uploads/placidplace-emoji-11638_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/theovergrownhomestead-laugh-14543_512.gif')"><img src="https://creshy.com/wp-content/uploads/theovergrownhomestead-laugh-14543_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/psddude-kaomoji-24102_512.gif')"><img src="https://creshy.com/wp-content/uploads/psddude-kaomoji-24102_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/particulate_matter-spooky-4198_512.gif')"><img src="https://creshy.com/wp-content/uploads/particulate_matter-spooky-4198_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/mxj_files-moon-26727_512.gif')"><img src="https://creshy.com/wp-content/uploads/mxj_files-moon-26727_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/placidplace-emoji-18392_512.gif')"><img src="https://creshy.com/wp-content/uploads/placidplace-emoji-18392_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/mxj_files-heart-21865_512.gif')"><img src="https://creshy.com/wp-content/uploads/mxj_files-heart-21865_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/mxj_files-star-22287_512.gif')"><img src="https://creshy.com/wp-content/uploads/mxj_files-star-22287_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/winterflower-emoji-1554_512.gif')"><img src="https://creshy.com/wp-content/uploads/winterflower-emoji-1554_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/mxj_files-heart-21861_512.gif')"><img src="https://creshy.com/wp-content/uploads/mxj_files-heart-21861_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/exceptional_3d-emoji-1422_512.gif')"><img src="https://creshy.com/wp-content/uploads/exceptional_3d-emoji-1422_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/huang-pi-tie-che-rabbit-6933_512.gif')"><img src="https://creshy.com/wp-content/uploads/huang-pi-tie-che-rabbit-6933_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/winterflower-emoji-1552_512.gif')"><img src="https://creshy.com/wp-content/uploads/winterflower-emoji-1552_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/huang-pi-tie-che-cat-6937_512.gif')"><img src="https://creshy.com/wp-content/uploads/huang-pi-tie-che-cat-6937_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/perianjs-surprised-54_512.gif')"><img src="https://creshy.com/wp-content/uploads/perianjs-surprised-54_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/catlinedigital-love-27828_512.gif')"><img src="https://creshy.com/wp-content/uploads/catlinedigital-love-27828_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/blendertimer-thumbs-up-2584_512.gif')"><img src="https://creshy.com/wp-content/uploads/blendertimer-thumbs-up-2584_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/camera-man-emoji-171_512.gif')"><img src="https://creshy.com/wp-content/uploads/camera-man-emoji-171_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/22348482-hamster-14608_512.gif')"><img src="https://creshy.com/wp-content/uploads/22348482-hamster-14608_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/blendertimer-question-145_512.gif')"><img src="https://creshy.com/wp-content/uploads/blendertimer-question-145_512.gif" alt="gif"></div>
+      <div class="gif-item" onclick="sendGif('https://creshy.com/wp-content/uploads/blendertimer-laughing-429_512.gif')"><img src="https://creshy.com/wp-content/uploads/blendertimer-laughing-429_512.gif" alt="gif"></div>
     </div>
     <button class="simple-modal-close" onclick="closeGifModal()">Close</button>
   </div>
@@ -900,9 +961,8 @@ if (!myId) {
 let myName = null;           // no identity is stored/verified · just a display label the user picks
 let replyTarget = null;      // {id, text, senderName}
 let reportTargetId = null;
-let myCountryFlag = "";      // detected once via IP-based lookup, attached to messages/comments
+let myCountryFlag = "";      // detected once via IP-based lookup, attached to messages/comments (country only)
 let myCountryName = "";
-let myCity = "";
 
 const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('msg-input');
@@ -1171,7 +1231,7 @@ function renderMessage(id, msg){
   row.id = 'row-' + id;
 
   const displayName = isMine ? 'You' : escapeHtml(msg.senderName || 'Anonymous');
-  const locationTag = formatLocationTag(msg.countryFlag, msg.countryName, msg.city);
+  const locationTag = formatLocationTag(msg.countryFlag, msg.countryName);
 
   let html = '';
   html += `<div class="sender-name">${displayName}${locationTag}</div>`;
@@ -1187,7 +1247,8 @@ function renderMessage(id, msg){
   html += `<div class="msg-meta">${formatTime(msg.timestamp)}</div>`;
   html += `
     <div class="msg-actions">
-      <button class="action-btn heart-btn"><span class="reaction-icon">❤️</span> <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'reactions')">${summarizeReactions(msg.reactions).total}</span></button>
+      <button class="action-btn heart-btn"><span class="reaction-icon">❤️</span></button>
+      <span class="reaction-breakdown" onclick="event.stopPropagation();showReactorNames('${id}',null,'reactions')">${renderReactionBreakdown(msg.reactions)}</span>
       <button class="action-btn like-btn" onclick="reactMsg('${id}','like')">👍 <span class="like-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'likes')">${countReactions(msg.likes)}</span></button>
       <button class="action-btn dislike-btn" onclick="reactMsg('${id}','dislike')">👎 <span class="dislike-count" onclick="event.stopPropagation();showReactorNames('${id}',null,'dislikes')">${countReactions(msg.dislikes)}</span></button>
       <button class="action-btn" onclick="startReply('${id}', ${jsAttr(msg.text)}, ${jsAttr(isMine ? 'You' : (msg.senderName || 'Anonymous'))})">↩ Reply</button>
@@ -1233,10 +1294,10 @@ function updateMessageUI(id, msg){
   }
   const likeCountEl = row.querySelector('.like-count');
   const dislikeCountEl = row.querySelector('.dislike-count');
-  const heartCountEl = row.querySelector('.heart-count');
+  const breakdownEl = row.querySelector('.reaction-breakdown');
   if (likeCountEl) likeCountEl.innerText = countReactions(msg.likes);
   if (dislikeCountEl) dislikeCountEl.innerText = countReactions(msg.dislikes);
-  if (heartCountEl) heartCountEl.innerText = summarizeReactions(msg.reactions).total;
+  if (breakdownEl) breakdownEl.innerHTML = renderReactionBreakdown(msg.reactions);
   applyReactionHighlight(id, msg);
   if (msg.comments){
     renderComments(id, msg.comments);
@@ -1282,6 +1343,14 @@ function summarizeReactions(reactions){
   return { total, groups: sorted, mine };
 }
 
+/* Renders each distinct emoji reaction with its own separate count,
+   e.g. "❤️ 3   😂 1   🔥 2", instead of a single combined number. */
+function renderReactionBreakdown(reactions){
+  const { groups } = summarizeReactions(reactions);
+  if (groups.length === 0) return '<span class="reaction-count-zero">0</span>';
+  return groups.map(g => `<span class="reaction-pill">${g.emoji} ${g.count}</span>`).join('');
+}
+
 function renderComments(msgId, comments){
   const list = document.getElementById('comment-list-' + msgId);
   if (!list) return;
@@ -1291,7 +1360,7 @@ function renderComments(msgId, comments){
     .map(([cId, c]) => {
       const isMine = c.sender === myId;
       const cDisplayName = isMine ? 'You' : (c.senderName || 'Anonymous');
-      const cLocationTag = formatLocationTag(c.countryFlag, c.countryName, c.city);
+      const cLocationTag = formatLocationTag(c.countryFlag, c.countryName);
       let h = `<div class="comment-item" id="crow-${msgId}-${cId}">`;
       h += `<span class="c-name">${escapeHtml(cDisplayName)}${cLocationTag}</span>`;
       if (c.replyTo){
@@ -1301,7 +1370,8 @@ function renderComments(msgId, comments){
       h += escapeHtml(c.text);
       h += `
         <div class="comment-actions">
-          <button class="action-btn heart-btn"><span class="reaction-icon">❤️</span> <span class="heart-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','reactions')">${summarizeReactions(c.reactions).total}</span></button>
+          <button class="action-btn heart-btn"><span class="reaction-icon">❤️</span></button>
+          <span class="reaction-breakdown" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','reactions')">${renderReactionBreakdown(c.reactions)}</span>
           <button class="action-btn like-btn" onclick="reactComment('${msgId}','${cId}','like')">👍 <span class="like-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','likes')">${countReactions(c.likes)}</span></button>
           <button class="action-btn dislike-btn" onclick="reactComment('${msgId}','${cId}','dislike')">👎 <span class="dislike-count" onclick="event.stopPropagation();showReactorNames('${msgId}','${cId}','dislikes')">${countReactions(c.dislikes)}</span></button>
           <button class="action-btn" onclick="startCommentReply('${msgId}','${cId}', ${jsAttr(c.text)}, ${jsAttr(cDisplayName)})">↩ Reply</button>
@@ -1819,8 +1889,7 @@ async function sendGif(url){
       reactions: null,
       reportCount: 0,
       countryFlag: myCountryFlag || null,
-      countryName: myCountryName || null,
-      city: myCity || null
+      countryName: myCountryName || null
     };
     if (replyTarget) payload.replyTo = replyTarget;
     await db.ref(`chats/${ROOM}/messages`).push(payload);
@@ -1830,62 +1899,6 @@ async function sendGif(url){
   }catch(err){
     console.error(err);
     showToast("Couldn't send that GIF.");
-  }
-}
-
-/* =======================================================
-   GROQ AI HELPER (used by the @bot companion)
-======================================================= */
-const GROQ_INSTRUCTIONS = {
-  bot: () => "You are a friendly, helpful assistant inside a group chat called Creshy. Keep answers short (2-3 sentences max), casual, and helpful. Never generate harmful, sexual, or hateful content."
-};
-
-const GROQ_MAX_TOKENS = {
-  bot: 150
-};
-
-async function callGroqChat(mode, text, extra){
-  const instructionBuilder = GROQ_INSTRUCTIONS[mode];
-  if (!instructionBuilder) return { success: false, error: 'Invalid AI mode.' };
-  const instruction = instructionBuilder(extra);
-  const userContent = text || '';
-  if (!userContent) return { success: false, error: 'Nothing to send.' };
-  try{
-    const controller = new AbortController();
-    const timeoutMs = 15000;
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    const response = await fetch('/groq-api.php', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt: userContent.slice(0, 3000),
-        instruction: instruction,
-        max_tokens: GROQ_MAX_TOKENS[mode] || 120
-      })
-    });
-    clearTimeout(timeoutId);
-    let data;
-    try {
-      data = await response.json();
-    } catch (parseErr) {
-      console.warn(`Groq (${mode}) returned non-JSON response, status ${response.status}`);
-      return { success: false, error: `Server error (status ${response.status}) — response wasn't valid JSON. Check your groq-api.php for PHP errors.` };
-    }
-    if (!response.ok || data.error) {
-      const errMsg = data.error || `Server returned status ${response.status}`;
-      console.warn(`Groq (${mode}) server error:`, errMsg);
-      return { success: false, error: errMsg };
-    }
-    if (!data.result) {
-      return { success: false, error: 'Server responded but sent no result.' };
-    }
-    return { success: true, result: String(data.result).trim() };
-  }catch(err){
-    const isTimeout = err.name === 'AbortError';
-    const msg = isTimeout ? 'Request timed out — server took too long to respond.' : (err.message || 'Network error.');
-    console.warn(`Groq (${mode}) call failed:`, msg);
-    return { success: false, error: msg };
   }
 }
 
@@ -1919,22 +1932,6 @@ function openLeaderboardModal(){
 }
 function closeLeaderboardModal(){
   document.getElementById('leaderboard-modal').classList.remove('show');
-}
-
-async function handleBotMention(text){
-  const question = text.replace(/(^|\s)@bot\b/i, '').trim();
-  if (!question) return;
-  const response = await callGroqChat('bot', question);
-  db.ref(`chats/${ROOM}/messages`).push({
-    sender: 'bot_creshy',
-    senderName: '🤖 Creshy Bot',
-    text: response.success ? response.result : `⚠️ Sorry, I couldn't answer that right now (${response.error})`,
-    timestamp: Date.now(),
-    likes: null,
-    dislikes: null,
-    reactions: null,
-    reportCount: 0
-  });
 }
 
 function openReportModal(msgId, commentId){
@@ -2014,8 +2011,7 @@ async function submitComment(msgId){
       text: text.slice(0, 200),
       timestamp: Date.now(),
       countryFlag: myCountryFlag || null,
-      countryName: myCountryName || null,
-      city: myCity || null
+      countryName: myCountryName || null
     };
     const replyTo = commentReplyTargets[msgId];
     if (replyTo) payload.replyTo = replyTo;
@@ -2093,12 +2089,10 @@ async function handleSend(){
       reactions: null,
       reportCount: 0,
       countryFlag: myCountryFlag || null,
-      countryName: myCountryName || null,
-      city: myCity || null
+      countryName: myCountryName || null
     };
     if (replyTarget) payload.replyTo = replyTarget;
     await db.ref(`chats/${ROOM}/messages`).push(payload);
-    if (/(^|\s)@bot\b/i.test(text)) handleBotMention(text);
     lastSendAt = Date.now();
     inputEl.value = "";
     cancelReply();
@@ -2146,7 +2140,6 @@ async function detectLocation(){
       myCountryFlag = countryCodeToFlagEmoji(data.country_code);
     }
     myCountryName = data.country_name || "";
-    myCity = data.city || "";
     db.ref(`presence/${ROOM}/${myId}`).update({ country: myCountryName || null, flag: myCountryFlag || null });
   }catch(err){
     console.warn("Location auto-detect unavailable, continuing without it.", err);
@@ -2161,12 +2154,9 @@ function countryCodeToFlagEmoji(code){
   return String.fromCodePoint(...chars);
 }
 
-function formatLocationTag(flag, countryName, city){
-  if (flag && city) return ` <span class="location-tag">${flag} ${escapeHtml(city)}</span>`;
+function formatLocationTag(flag, countryName){
   if (flag) return ` <span class="location-tag">${flag}</span>`;
-  if (countryName && city) return ` <span class="location-tag">(${escapeHtml(countryName)}, ${escapeHtml(city)})</span>`;
   if (countryName) return ` <span class="location-tag">(${escapeHtml(countryName)})</span>`;
-  if (city) return ` <span class="location-tag">(${escapeHtml(city)})</span>`;
   return '';
 }
 
